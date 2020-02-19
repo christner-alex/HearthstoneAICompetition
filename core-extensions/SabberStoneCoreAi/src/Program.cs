@@ -20,6 +20,7 @@ using SabberStoneCore.Enums;
 using SabberStoneCoreAi.POGame;
 using SabberStoneCoreAi.Agent.ExampleAgents;
 using SabberStoneCoreAi.Agent;
+using SabberStoneCoreAi.Agent.DLAgent;
 
 namespace SabberStoneCoreAi
 {
@@ -41,13 +42,13 @@ namespace SabberStoneCoreAi
 			};
 
 			Console.WriteLine("Setup POGameHandler");
-			AbstractAgent player1 = new GreedyAgent();
-			AbstractAgent player2 = new FaceHunter();
+			AbstractAgent player1 = new DLAgent();
+			AbstractAgent player2 = new DLAgent();
 			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws:false);
 
 			Console.WriteLine("Simulate Games");
 			//gameHandler.PlayGame();
-			gameHandler.PlayGames(nr_of_games:100, addResultToGameStats:true, debug:false);
+			gameHandler.PlayGames(nr_of_games:1, addResultToGameStats:true, debug:false);
 			GameStats gameStats = gameHandler.getGameStats();
 
 			gameStats.printResults();
