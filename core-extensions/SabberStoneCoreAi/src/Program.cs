@@ -1,4 +1,4 @@
-#region copyright
+﻿#region copyright
 // SabberStone, Hearthstone Simulator in C# .NET Core
 // Copyright (C) 2017-2019 SabberStone Team, darkfriend77 & rnilva
 //
@@ -34,7 +34,7 @@ namespace SabberStoneCoreAi
 			{
 				StartPlayer = 1,
 				Player1HeroClass = CardClass.MAGE,
-				Player2HeroClass = CardClass.MAGE,
+				Player2HeroClass = CardClass.HUNTER,
 				FillDecks = true,
 				Shuffle = true,
 				Logging = false
