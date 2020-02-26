@@ -24,18 +24,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		public Dictionary<string, DeterministicNode> EndTurnNodes { get; }
 
-		//the node and corresponding score of the best EndTurn node found.
-		//null and -inf if none has been found
-		/// <summary>
-		/// The End Turn node with the highest score found. Null if there are no end turn nodes.
-		/// </summary>
-		private DeterministicNode bestEndNode;
-
-		/// <summary>
-		/// The score of the End Turn node with the highest score found. Negative Infinity if there are no end turn nodes.
-		/// </summary>
-		private float bestEndScore;
-
 		/// <summary>
 		/// All Maxtrees descended from this MaxTree.
 		/// </summary>
@@ -88,7 +76,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// The agent this tree belongs to.
 		/// </summary>
-		private DLAgent agent;
+		public readonly DLAgent Agent;
 
 		/// <summary>
 		/// Creates a new MaxTree object to represent the results of actions from the root state.
@@ -122,7 +110,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			lethal_node = null;
 
-			agent = agent ?? parent_tree.agent ?? null;
+			Agent = parent_tree != null ? parent_tree.Agent : agent;
 			
 			//put this tree in the subtree of any predecessor trees
 			ParentTree = parent_tree;
@@ -130,9 +118,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				ParentTree.PercolateUpMaxTree(this);
 			}
-
-			bestEndNode = null;
-			bestEndScore = Single.NegativeInfinity;
 
 			//if the root is a loss, a win, or an end turn
 			//then there are no nodes to expand
@@ -149,8 +134,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			if (Root.IsEndTurn)
 			{
 				EndTurnNodes.Add(Root.StateRep, Root);
-				bestEndScore = Root.Score();
-				bestEndNode = Root;
 				done = true;
 			}
 			if (done)
@@ -287,14 +270,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					{
 						//add it to the end turn list
 						EndTurnNodes.Add(n.Key, n.Value);
-
-						//if it's better than the last endturn node found, save it
-						float s = n.Value.Score();
-						if (s > bestEndScore)
-						{
-							bestEndScore = s;
-							bestEndNode = n.Value;
-						}
 					}
 
 					//if it isn't an endturn or loss node, add it to the stack
@@ -426,9 +401,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			//otherwise, return the end turn or chance node with the highest score
-			Node bestnode = bestEndNode;
-			float bestscore = bestEndScore;
-			foreach(ChanceNode n in ChanceNodes)
+			Node bestnode = null;
+			float bestscore = Single.NegativeInfinity;
+			foreach (Node n in EndTurnNodes.Cast<Node>().Concat(ChanceNodes.Cast<Node>()))
 			{
 				float s = n.Score();
 				if (s > bestscore)
@@ -576,30 +551,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 							Console.WriteLine("MaxTree: The non-last node in the queue is not a deterministic node");
 							result = false;
 						}
-					}
-				}
-			}
-
-			if(bestEndNode!=null)
-			{
-				if(!EndTurnNodes.ContainsValue(bestEndNode))
-				{
-					Console.WriteLine("MaxTree: The bestEndNode is not in EndTurnNodes");
-					result = false;
-				}
-
-				if (bestEndScore != bestEndNode.Score())
-				{
-					Console.WriteLine("MaxTree: The bestEndScore is not the bestEndNode's score");
-					result = false;
-				}
-
-				foreach (DeterministicNode n in EndTurnNodes.Values)
-				{
-					if(bestEndScore < n.Score())
-					{
-						Console.WriteLine("MaxTree: The bestEndScore is less than that of one of the EndTurnNodes");
-						result = false;
 					}
 				}
 			}

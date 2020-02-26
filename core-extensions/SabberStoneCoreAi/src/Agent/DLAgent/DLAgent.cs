@@ -13,6 +13,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class DLAgent : AbstractAgent
 	{
+		public Scorer scorer;
+
 		private MaxTree tree;
 		private float move_seconds = 5.0f;
 		private Stopwatch turn_watch;
@@ -85,6 +87,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			tree = null;
 			turn_watch = new Stopwatch();
 			rnd = new Random();
+
+			scorer = new Scorer();
 		}
 
 		public override void InitializeGame()

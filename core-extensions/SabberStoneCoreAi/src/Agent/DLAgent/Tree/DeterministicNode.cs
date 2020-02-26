@@ -29,11 +29,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		public string StateRep { get; private set; }
 
-		/// <summary>
-		/// This node's score. 0 if isn't an end turn node.
-		/// </summary>
-		private float score;
-
 		public DeterministicNode(POGame.POGame s, DeterministicNode p, PlayerTask a, MaxTree t) : base(p,a,t)
 		{
 			State = s;
@@ -41,8 +36,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			deterministic_children = new Dictionary<string, DeterministicNode>();
 			chance_children = new List<ChanceNode>();
-
-			score = IsEndTurn ? CalcScore() : 0;
 
 			CheckRep();
 		}
@@ -143,34 +136,33 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return (deterministic_children, chance_children, winner);
 		}
 
-		/// <summary>
-		/// Calculate and set this node's score variable.
-		/// </summary>
-		/// <returns>The calculated score</returns>
-		private float CalcScore()
+		public override float Score()
 		{
-			//temporary, for testing
 
-			//if this is a loss node, return the loss score
-			if (IsLoss)
+			Scorer scorer = Tree.Agent.scorer;
+			float score;
+
+			if(!IsEndTurn)
 			{
-				score = -100;
+				score = 0;
+			}
+			if (IsLoss) //if this is a loss node, return the loss score
+			{
+				score = scorer.LossScore;
 			}
 			else if (IsLethal) //if this is a lethal node, return the win score
 			{
-				score = 100;
+				score = scorer.WinScore;
 			}
 			else
 			{
-				//Otherwise, return the NN score
+				//temporary, for testing
 				score = Depth;
+
+				//Otherwise, return the NN score
+				//score = scorer.R(Tree.Root.State, State);
 			}
 
-			return score;
-		}
-
-		public override float Score()
-		{
 			return score;
 		}
 
