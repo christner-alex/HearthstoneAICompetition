@@ -153,7 +153,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			CheckRep();
 
-			PlayerTask result = null;
+			(PlayerTask,POGame.POGame) result = (null,null);
 
 			if(poGame != null && taskqueue.Count != 0)
 			{
