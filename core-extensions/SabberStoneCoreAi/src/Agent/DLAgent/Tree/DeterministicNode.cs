@@ -49,13 +49,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// Whether this node is a lethal state: one where the player has won.
 		/// </summary>
-		public bool IsLethal => State.CurrentOpponent.Hero.Health <= 0 && !IsLoss;
+		public bool IsLethal => Tree.Agent.scorer.IsLethal(State);
 		/// <summary>
 		/// Whether this node is a loss state: one where the player has lost.
 		/// </summary>
-		public bool IsLoss =>
-			//TODO: check implementation
-			(State.CurrentOpponent != State.CurrentPlayer) && (State.CurrentPlayer.Hero.Health <= 0);
+		public bool IsLoss => Tree.Agent.scorer.IsLoss(State);
 
 		/// <summary>
 		/// Finds and stores all the states that result from taking an action from this node's state,
@@ -142,25 +140,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Scorer scorer = Tree.Agent.scorer;
 			float score;
 
-			if(!IsEndTurn)
+			if (!IsEndTurn)
 			{
 				score = 0;
 			}
-			if (IsLoss) //if this is a loss node, return the loss score
-			{
-				score = scorer.LossScore;
-			}
-			else if (IsLethal) //if this is a lethal node, return the win score
-			{
-				score = scorer.WinScore;
-			}
 			else
 			{
-				//temporary, for testing
-				score = Depth;
-
 				//Otherwise, return the NN score
-				//score = scorer.R(Tree.Root.State, State);
+				score = scorer.Q(Tree.Agent.start_turn_state, State);
 			}
 
 			return score;

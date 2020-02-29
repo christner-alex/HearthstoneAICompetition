@@ -112,8 +112,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			CheckRep();
 
-			//temporary for testing
-			return 1000 * numerator / weights.Values.Sum();
+			return numerator / weights.Values.Sum();
 		}
 
 		public override bool CheckRep()

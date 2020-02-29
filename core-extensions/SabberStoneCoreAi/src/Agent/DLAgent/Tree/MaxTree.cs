@@ -43,12 +43,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// The MaxTree that this tree is a direct descendant of.
 		/// If this tree is the root tree, this is null
 		/// </summary>
-		public MaxTree ParentTree { get; private set; }
+		public readonly MaxTree ParentTree;
 
 		/// <summary>
 		/// The node contraining the gamestate that represents the head of this tree.
 		/// </summary>
-		public DeterministicNode Root { get; private set; }
+		public readonly DeterministicNode Root;
 
 		/// <summary>
 		/// The first node found in this tree in which the player wins.
@@ -81,14 +81,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// Creates a new MaxTree object to represent the results of actions from the root state.
 		/// </summary>
-		/// <param name="rootgame"> The game state this tree starts from</param>
-		/// <param name="rootaction"> The PlayerTask which resulted in the root state. Null if no such action exists (like with the start of a turn)</param>
+		/// <param name="root_game"> The game state this tree starts from</param>
+		/// <param name="root_action"> The PlayerTask which resulted in the root state. Null if no such action exists (like with the start of a turn)</param>
 		/// <param name="parent_tree"> The MaxTree that this tree directly descends from. Null if no such action exists (like with the start of a turn)</param>
 		/// <param name="det"> The number of times a state/action pair will be simulated to check if the results are deterministic</param>
 		/// <param name="tree_prob"> A probability. The higher tree_prob, the greater the chance a lower subtree will be expanded each expansion</param>
-		public MaxTree(POGame.POGame rootgame, PlayerTask rootaction=null, MaxTree parent_tree=null, DLAgent agent=null, int det = 3, float tree_prob = 0.5f)
+		public MaxTree(POGame.POGame root_game, PlayerTask root_action=null, MaxTree parent_tree=null, DLAgent agent=null, int det = 3, float tree_prob = 0.5f)
 		{
-			Root = new DeterministicNode(rootgame, null, rootaction, this);
+			Root = new DeterministicNode(root_game, null, root_action, this);
 
 			DeterministicNodes = new Dictionary<string, DeterministicNode>();
 			DeterministicNodes.Add(Root.StateRep, Root);
@@ -153,7 +153,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			CheckRep();
 
-			(PlayerTask,POGame.POGame) result = (null,null);
+			PlayerTask result = null;
 
 			if(poGame != null && taskqueue.Count != 0)
 			{
