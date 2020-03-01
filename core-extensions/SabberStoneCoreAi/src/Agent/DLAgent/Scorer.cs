@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Numerics;
-using System.Text;
 using SabberStoneCore.Model.Entities;
 using SabberStoneCore.Model.Zones;
-using SabberStoneCoreAi.POGame;
-
+using System.Linq;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -17,7 +14,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public readonly float opponent_score_modifier = 0.8f;
 
-		public readonly Vector<float> weights;
+		public readonly List<float> weights;
 
 		/// <summary>
 		/// Whether this state is a lethal state: one where the player has won.
@@ -34,7 +31,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public Scorer()
 		{
-			weights = new Vector<float>(new float[] {
+			weights = new List<float>( new float[] {
 				3f, //player board change
 				1f, //player hand change
 				-3f, //opponent board change
@@ -42,7 +39,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				0.1f, //player health change
 				-0.1f, //opponent health change
 				-0.2f //player remaining mana
-			});
+			} );
 		}
 
 		public float CheckTerminal(POGame.POGame state)
@@ -71,7 +68,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			float score = CheckTerminal(end_state);
 			if (score != 0) return score;
 
-			//TODO: implement scoring
+			//TODO: revise score if needed
 
 			Controller player_start = start_state.CurrentPlayer;
 			Controller opponent_start = start_state.CurrentOpponent;
@@ -97,7 +94,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			float opponent_start_health = opponent_start.Hero.Health + opponent_start.Hero.Armor;
 			float opponent_end_health = opponent_end.Hero.Health + opponent_end.Hero.Armor;
 
-			Vector<float> features = new Vector<float>(new float[] {
+			List<float> features = new List<float>(new float[] {
 				player_end_board.Count - player_start_board.Count, //friendly board change
 				player_end_hand.Count - player_start_hand.Count, //friendly hand change
 				opponent_end_board.Count - opponent_start_board.Count, //enemy board change
@@ -107,7 +104,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				player_end.RemainingMana //remaining mana
 			});
 
-			return Vector.Dot(features, weights);
+			return features.Zip(weights, (x, y) => x * y).Sum();
 		}
 
 		/// <summary>

@@ -5,6 +5,9 @@
     <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="MathNet.Numerics" Version="4.9.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\SabberStoneCore\SabberStoneCore.csproj" />
   </ItemGroup>
 </Project>

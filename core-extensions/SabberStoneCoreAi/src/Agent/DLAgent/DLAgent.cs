@@ -17,7 +17,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private MaxTree tree;
 
-		private float move_seconds = 5.0f;
+		private float move_seconds = 60.0f;
 		private Stopwatch turn_watch;
 
 		private Random rnd;
@@ -25,10 +25,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public List<MoveRecord> records;
 		public MoveRecord current_record;
 
-		public float epsilon;
+		public float epsilon = 0.25f;
 		private bool do_random;
 
 		public POGame.POGame start_turn_state;
+
+		public bool debug = false;
 
 		public override void FinalizeAgent()
 		{
@@ -66,7 +68,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				current_record.SetState(poGame.getCopy());
 
 				//with chance of epsilon, make random moves this turn.
-				do_random = epsilon < rnd.NextDouble();
+				do_random = rnd.NextDouble() < epsilon;
 
 				//keep track of the state the turn starts on
 				start_turn_state = poGame;

@@ -155,7 +155,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override bool CheckRep()
 		{
-			if (!Parameters.doCheckRep || !Parameters.NodeTreePrintDebug)
+			if (!Parameters.doCheckRep)
 			{
 				return true;
 			}

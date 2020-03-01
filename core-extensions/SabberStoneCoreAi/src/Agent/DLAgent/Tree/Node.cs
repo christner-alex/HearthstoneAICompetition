@@ -10,7 +10,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 	{
 		/// <summary>
 		/// The Node that is this Node's parent in its MaxTree.
-		/// null if a child of the root
+		/// null if the root node
 		/// </summary>
 		public DeterministicNode Predecessor { get; protected set; }
 

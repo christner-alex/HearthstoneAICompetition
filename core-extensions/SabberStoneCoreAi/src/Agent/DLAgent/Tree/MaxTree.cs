@@ -203,6 +203,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			watch.Restart();
 			while (lethal_node == null //break if there is a lethal node (no need to search furnther)
 				&& ChanceNodes.Count > 0 //or there are no chance nodes (nothing to search)
+				&& remaining > 0 //or there is no time left
 				&& watch.Elapsed.TotalSeconds < remaining //or if we are out of time
 				&& loops < Math.Pow(chance_subtrees.Count, 2) + ChanceNodes.Count) //or if there are far more loops than subtrees (not much new info being created)
 			{
@@ -246,7 +247,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			CheckRep();
 
-			//while the queue is not empty, there is still time, and lethal hasn't been found
 			while (expansion_list.Count > 0 //while there are still nodes to expand
 				&& (watch.Elapsed.TotalSeconds < runtime || EndTurnNodes.Count == 0) //and there is either more time or no End Turn Nodes found
 				&& lethal_node == null) //and we haven't found a lethal node
@@ -273,7 +273,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					}
 
 					//if it isn't an endturn or loss node, add it to the stack
-					if(!n.Value.IsEndTurn && !n.Value.IsLoss)
+					if(!n.Value.IsEndTurn && !n.Value.IsLoss && !n.Value.IsLethal)
 					{
 						expansion_list.Add(n.Value);
 					}
@@ -304,12 +304,18 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			CheckRep();
 
-			//choose a random Chance node in the tree, such that ones close to the top have higher
+			//choose a random MaxTree node in the tree, such that ones close to the top have higher
 			//chance to be picked
 			MaxTree current = this;
-			while (current.chance_subtrees.Count > 0 && rnd.NextDouble() <= child_tree_prob)
+			while (current.ChanceNodes.Count > 0 && rnd.NextDouble() <= child_tree_prob)
 			{
-				current = chance_subtrees[rnd.Next(chance_subtrees.Count)];
+				ChanceNode random_node = ChanceNodes[rnd.Next(ChanceNodes.Count)];
+				MaxTree next = random_node.RandomSubTree();
+				if (next == null)
+				{
+					break;
+				}
+				current = next;
 			}
 
 			//if the chosen tree has no chance nodes, return
@@ -359,6 +365,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				current = n.Item2;
 			}
 
+			if(current == null)
+			{
+				return;
+			}
+
 			LinkedList<Node> l = new LinkedList<Node>();
 
 			//Iteratively backtrack from that node to its parent
@@ -403,7 +414,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//otherwise, return the end turn or chance node with the highest score
 			Node bestnode = null;
 			float bestscore = Single.NegativeInfinity;
-			foreach (Node n in EndTurnNodes.Cast<Node>().Concat(ChanceNodes.Cast<Node>()))
+			int loops = 0;
+			foreach (Node n in ChanceNodes.Cast<Node>().Concat(EndTurnNodes.Values.Cast<Node>()))
 			{
 				float s = n.Score();
 				if (s > bestscore)
@@ -411,7 +423,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					bestscore = s;
 					bestnode = n;
 				}
+
+				loops++;
 			}
+
+			Debug.Assert(loops == EndTurnNodes.Count + ChanceNodes.Count);
 
 			CheckRep();
 			return (bestscore, bestnode);
@@ -419,7 +435,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public bool CheckRep()
 		{
-			if(!Parameters.doCheckRep || !Parameters.MaxTreePrintDebug)
+			if(!Parameters.doCheckRep)
 			{
 				return true;
 			}
