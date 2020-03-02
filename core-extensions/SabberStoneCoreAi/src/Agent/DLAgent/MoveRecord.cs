@@ -14,6 +14,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public POGame.POGame Successor { get; private set; }
 		public string SuccessorRep { get; private set; }
 
+		public int TerminalStatus { get; private set; }
+
 		public MoveRecord()
 		{
 			State = null;
@@ -23,6 +25,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			ActionRep = null;
 			Successor = null;
 			SuccessorRep = null;
+			TerminalStatus = 0;
 		}
 
 		public void SetState(POGame.POGame state, string state_rep = null)
@@ -42,13 +45,28 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Successor = Action;
 			SuccessorRep = ActionRep ?? GameToRep.Convert(State);
 		}
+		public void SetTerminalStatus(int status)
+		{
+			TerminalStatus = Math.Clamp(status, -1, 1);
+		}
 
 		public void SetScore(Scorer scorer)
 		{
-			if(State != null && Action != null && Successor != null)
+
+			if(State != null && Action != null && TerminalStatus == 1)
+			{
+				Reward = scorer.WinScore;
+			}
+			if (State != null && Action != null && TerminalStatus == 1)
+			{
+				Reward = scorer.LossScore;
+			}
+
+			if (State != null && Action != null && Successor != null)
 			{
 				Reward = scorer.ScoreTransition(State, Action, Successor);
 			}
 		}
+
 	}
 }

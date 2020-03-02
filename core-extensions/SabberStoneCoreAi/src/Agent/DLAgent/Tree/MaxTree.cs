@@ -56,6 +56,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		private DeterministicNode lethal_node;
 
+		public bool FoundLethal => lethal_node != null;
+
 		/// <summary>
 		/// A list of nodes to be searched in the FillDeterministicTree function.
 		/// </summary>
@@ -201,7 +203,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//expand chance nodes for the remaining time.
 			int loops = 0;
 			watch.Restart();
-			while (lethal_node == null //break if there is a lethal node (no need to search furnther)
+			while (!FoundLethal //break if there is a lethal node (no need to search furnther)
 				&& ChanceNodes.Count > 0 //or there are no chance nodes (nothing to search)
 				&& remaining > 0 //or there is no time left
 				&& watch.Elapsed.TotalSeconds < remaining //or if we are out of time
@@ -249,7 +251,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			while (expansion_list.Count > 0 //while there are still nodes to expand
 				&& (watch.Elapsed.TotalSeconds < runtime || EndTurnNodes.Count == 0) //and there is either more time or no End Turn Nodes found
-				&& lethal_node == null) //and we haven't found a lethal node
+				&& !FoundLethal) //and we haven't found a lethal node
 			{
 				//select an unexpanded node at random
 				int ind = rnd.Next(expansion_list.Count);
@@ -359,7 +361,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//if one hasn't been found, start from the endturn or chance
 			//node in this tree with the highest score
-			if (lethal_node == null)
+			if (!FoundLethal)
 			{
 				(float, Node) n = GetScore();
 				current = n.Item2;
@@ -400,7 +402,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//if a lethal node has been found
 			//return it and its score
-			if (lethal_node != null)
+			if (FoundLethal)
 			{
 				return (lethal_node.Score(), lethal_node);
 			}
@@ -448,13 +450,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				result = false;
 			}
 
-			if(lethal_node != null && !lethal_node.IsLethal)
+			if(FoundLethal && !lethal_node.IsLethal)
 			{
 				Console.WriteLine("MaxTree: The lethal node is not lethal");
 				result = false;
 			}
 
-			if (lethal_node != null && !DeterministicNodes.Values.Contains(lethal_node))
+			if (FoundLethal && !DeterministicNodes.Values.Contains(lethal_node))
 			{
 				Console.WriteLine("MaxTree: The lethal node is not in its tree's DeterministicNodes");
 				result = false;

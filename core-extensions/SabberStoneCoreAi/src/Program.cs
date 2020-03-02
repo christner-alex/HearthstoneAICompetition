@@ -22,6 +22,7 @@ using SabberStoneCoreAi.POGame;
 using SabberStoneCoreAi.Agent.ExampleAgents;
 using SabberStoneCoreAi.Agent;
 using SabberStoneCoreAi.Agent.DLAgent;
+using NumSharp;
 
 namespace SabberStoneCoreAi
 {
@@ -32,8 +33,15 @@ namespace SabberStoneCoreAi
 		{
 			Console.WriteLine("Setup gameConfig");
 
-			//List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
-			List<Card> d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
+			NDArray a = np.array(5f);
+			NDArray b = np.array(5f);
+			NDArray c = np.array(6f);
+
+			bool e = a.Equals(b);
+			bool f = a.Equals(c);
+
+			List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
+			//List<Card> d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
 
 			var gameConfig = new GameConfig()
 			{
@@ -53,7 +61,7 @@ namespace SabberStoneCoreAi
 
 			Console.WriteLine("Simulate Games");
 			//gameHandler.PlayGame();
-			gameHandler.PlayGames(nr_of_games:2, addResultToGameStats:true, debug:false);
+			gameHandler.PlayGames(nr_of_games:1, addResultToGameStats:true, debug:false);
 			GameStats gameStats = gameHandler.getGameStats();
 
 			gameStats.printResults();

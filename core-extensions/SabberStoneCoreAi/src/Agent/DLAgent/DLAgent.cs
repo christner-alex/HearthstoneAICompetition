@@ -25,7 +25,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public List<MoveRecord> records;
 		public MoveRecord current_record;
 
-		public float epsilon = 0.25f;
+		public float Epsilon { get; set; }
 		private bool do_random;
 
 		public POGame.POGame start_turn_state;
@@ -68,7 +68,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				current_record.SetState(poGame.getCopy());
 
 				//with chance of epsilon, make random moves this turn.
-				do_random = rnd.NextDouble() < epsilon;
+				do_random = rnd.NextDouble() < Epsilon;
 
 				//keep track of the state the turn starts on
 				start_turn_state = poGame;
@@ -98,22 +98,39 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				tree.Run(t);
 			}
 
+			bool del_tree = false;
+
 			//if a move has not been found, return a random move
 			if (move == null)
 			{
 				List<PlayerTask> l = poGame.CurrentPlayer.Options();
 				move = l[rnd.Next(l.Count)];
-				tree = null;
+
+				del_tree = true;
 			}
 
 			//if the move is an end turn action, reset the turn watch and delete the tree
 			if (move.PlayerTaskType == PlayerTaskType.END_TURN)
 			{
 				turn_watch.Reset();
-				tree = null;
 
 				//TODO: find the true endturn state somehow
 				current_record.SetAction( poGame.Simulate(new List<PlayerTask>() { move }).Values.Last() );
+
+				//if the move is lethal, record it
+				if(tree != null && tree.FoundLethal)
+				{
+					//TODO: find a way to find if game is win, loss, or tie w/o the tree
+					current_record.SetTerminalStatus(1);
+					records.Add(current_record);
+				}
+
+				del_tree = true;
+			}
+
+			if(del_tree)
+			{
+				tree = null;
 			}
 
 			return move;
@@ -133,6 +150,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			do_random = false;
 
 			start_turn_state = null;
+
+			Epsilon = 0.25f;
 		}
 
 		public override void InitializeGame()
