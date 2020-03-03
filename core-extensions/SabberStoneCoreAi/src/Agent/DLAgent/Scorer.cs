@@ -4,6 +4,7 @@ using SabberStoneCore.Model.Entities;
 using SabberStoneCore.Model.Zones;
 using System.Linq;
 using System.Diagnostics;
+using NumSharp;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -15,7 +16,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public readonly float opponent_score_modifier = 0.8f;
 
-		public readonly List<float> weights;
+		public readonly NDArray weights;
 
 		/// <summary>
 		/// Whether this state is a lethal state: one where the player has won.
@@ -29,10 +30,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//TODO: check implementation
 			(state.CurrentOpponent != state.CurrentPlayer) && (state.CurrentPlayer.Hero.Health <= 0);
 
+		private DLAgent agent;
 
-		public Scorer()
+		public Scorer(DLAgent agent)
 		{
-			weights = new List<float>( new float[] {
+			weights = np.array(
 				0.1f, //friendly health change
 				1f, //friendly hand change
 				3f, //friendly board change
@@ -46,7 +48,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				-2f, //enemy weapon change
 
 				-0.3f //remaining mana
-			} );
+			);
+
+			this.agent = agent;
 		}
 
 		public float CheckTerminal(POGame.POGame state)
@@ -65,23 +69,29 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		}
 
 		/// <summary>
-		/// Calculate the reward of starting in 'state' and ending your turn on the state 'action'
+		/// Calculate the reward of starting in 'state' and ending your turn on the state 'action'.
+		/// NOTE: start_state.CurrentPlayer is the one for who the reward is calculated.
+		/// start_state.CurrentPlayer should be end_state.CurrentOpponent
+		/// and start_state.CurrentOpponent should be end_state.CurrentPlayer
 		/// </summary>
 		/// <param name="start_state">The start of the turn to score</param>
 		/// <param name="end_state">The end of the turn to score</param>
 		/// <returns></returns>
-		public float TurnReward(POGame.POGame start_state, POGame.POGame end_state, int friendly_id)
+		public float TurnReward(POGame.POGame start_state, POGame.POGame end_state, int? friendly_id = null)
 		{
 			float score = CheckTerminal(end_state);
 			if (score != 0) return score;
 
 			//TODO: revise score if needed
 
-			Controller player_start = start_state.CurrentPlayer.Id == friendly_id ? start_state.CurrentPlayer : start_state.CurrentOpponent;
+			//get the controller
+			//NOTE: assume the start turn's current player is turn player
+
+			Controller player_start = start_state.CurrentPlayer;
 			Controller opponent_start = player_start.Opponent;
 
-			Controller player_end = end_state.CurrentPlayer.Id == friendly_id ? end_state.CurrentPlayer : end_state.CurrentOpponent;
-			Controller opponent_end = player_end.Opponent;
+			Controller opponent_end = end_state.CurrentPlayer;
+			Controller player_end = opponent_end.Opponent;
 
 			Debug.Assert(player_start.Id == player_end.Id && opponent_end.Id == opponent_start.Id && player_start.Id != opponent_start.Id);
 
@@ -118,7 +128,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			int opponent_end_weapon = opponent_end.Hero.Weapon != null ? 1 : 0;
 
 
-			List<float> features = new List<float>(new float[] {
+			NDArray features = np.array(
 				player_end_health - player_start_health, //friendly health change
 				player_end_hand.Count - player_start_hand.Count, //friendly hand change
 				player_end_board.Count - player_start_board.Count, //friendly board change
@@ -132,9 +142,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				opponent_end_weapon - opponent_start_weapon, //enemy weapon change
 
 				player_end.RemainingMana //remaining mana
-			});
+			);
 
-			float reward = features.Zip(weights, (x, y) => x * y).Sum();
+			float reward = np.dot(features, weights);
 			return reward;
 		}
 
@@ -143,7 +153,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="end_state">The state to estimate the score for</param>
 		/// <returns></returns>
-		public float ActionScore(POGame.POGame end_state, int friendly_id)
+		public float ActionScore(POGame.POGame end_state, int? friendly_id = null)
 		{
 			float score = CheckTerminal(end_state);
 			if (score != 0) return score;
@@ -159,13 +169,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="start_state"></param>
 		/// <param name="end_state"></param>
 		/// <returns></returns>
-		public float Q(POGame.POGame start_state, POGame.POGame end_state)
+		public float Q(POGame.POGame start_state, POGame.POGame end_state, int? friendly_id = null)
 		{
 			float score = CheckTerminal(end_state);
 			if (score != 0) return score;
 
-			int friendly_id = start_state.CurrentPlayer.Id;
-			return TurnReward(start_state, end_state, friendly_id) + ActionScore(end_state, friendly_id);
+			return TurnReward(start_state, end_state) + ActionScore(end_state);
 		}
 
 		/// <summary>
@@ -177,14 +186,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="p1_end">The state of the end of your turn/start of the opponent's turn</param>
 		/// <param name="p2_end">The state of the end of your opponent's turn/start of your next turn</param>
 		/// <returns></returns>
-		public float ScoreTransition(POGame.POGame p1_start, POGame.POGame p1_end, POGame.POGame p2_end)
+		public float ScoreTransition(POGame.POGame p1_start, POGame.POGame p1_end, POGame.POGame p2_end, int? friendly_id = null)
 		{
 			float score = CheckTerminal(p1_end);
 			if (score != 0) return score;
 
-			int friendly_id = p1_start.CurrentPlayer.Id;
-			int opp_id = p1_start.CurrentPlayer.Opponent.Id;
-			return TurnReward(p1_start, p1_end, friendly_id) - opponent_score_modifier * TurnReward(p1_end, p2_end, friendly_id);
+			return TurnReward(p1_start, p1_end) - opponent_score_modifier * TurnReward(p1_end, p2_end);
 		}
 	}
 }

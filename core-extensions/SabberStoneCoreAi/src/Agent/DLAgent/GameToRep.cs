@@ -19,7 +19,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Controller opponent = game.CurrentOpponent;
 
 			Minion[] player_minions = player.BoardZone.GetAll();
-			Minion a = player_minions[0];
+			Minion[] opponent_minions = player.Opponent.BoardZone.GetAll();
 
 			IPlayable[] player_hand = player.HandZone.GetAll();
 
@@ -48,21 +48,25 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			//TODO: add text, tribe, and card type
 
-			NDArray result;
+			NDArray result = np.zeros(new Shape(7));
 			switch (card.Type)
 			{
 				case CardType.MINION:
-					result = np.array(card.Cost, card.ATK, card.Health);
+					result["4:"] = np.array(card.Tags[GameTag.COST], card.Tags[GameTag.ATK], card.Tags[GameTag.HEALTH]);
+					result[0] = 1;
 					break;
 				case CardType.SPELL:
-					result = np.array(card.Cost, 0, 0);
+					result["4:"] = np.array(card.Tags[GameTag.COST], 0, 0);
+					result[1] = 1;
 					break;
 				case CardType.WEAPON:
-					//TODO: check for proper weapon stats
-					result = np.array(card.Cost, card.ATK, card.Health);
+					result["4:"] = np.array(card.Tags[GameTag.COST], card.Tags[GameTag.ATK], card.Tags[GameTag.DURABILITY]);
+					result[2] = 1;
 					break;
 				case CardType.HERO:
-					result = np.array(card.Cost, 0, card.)
+					result["4:"] = np.array(card.Tags[GameTag.COST], 0, card.Tags[GameTag.ARMOR]);
+					result[3] = 1;
+					break;
 			}
 
 			return result;

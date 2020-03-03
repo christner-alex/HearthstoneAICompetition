@@ -40,15 +40,18 @@ namespace SabberStoneCoreAi
 			bool e = a.Equals(b);
 			bool f = a.Equals(c);
 
-			List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
+			//List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
 			//List<Card> d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
+			//List<Card> d = Enumerable.Repeat(Cards.FromId("CS2_106"), 30).ToList(); //fiery war axe
+
+			List<Card> d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
 
 			var gameConfig = new GameConfig()
 			{
 				StartPlayer = 1,
 				Player1HeroClass = CardClass.MAGE,
 				Player2HeroClass = CardClass.HUNTER,
-				FillDecks = true,
+				FillDecks = false,
 				Shuffle = true,
 				Logging = false,
 				Player1Deck = d

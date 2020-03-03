@@ -8,6 +8,7 @@ using SabberStoneCore.Tasks.PlayerTasks;
 using SabberStoneCore.Model;
 using System.Linq;
 using System.Diagnostics;
+using SabberStoneCore.Model.Entities;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -32,6 +33,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public bool debug = false;
 
+		public int Id { get; private set; }
+
 		public override void FinalizeAgent()
 		{
 			
@@ -50,8 +53,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override PlayerTask GetMove(POGame.POGame poGame)
 		{
+			//make sure the id is of the friendly player
+			Id = poGame.CurrentPlayer.Id;
+
 			//if the watch is not running (i.e. if it is the start of your turn)...
-			if(!turn_watch.IsRunning)
+			if (!turn_watch.IsRunning)
 			{
 				turn_watch.Start();
 
@@ -142,7 +148,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			turn_watch = new Stopwatch();
 			rnd = new Random();
 
-			scorer = new Scorer();
+			scorer = new Scorer(this);
 
 			records = new List<MoveRecord>();
 			current_record = null;
@@ -152,6 +158,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			start_turn_state = null;
 
 			Epsilon = 0.25f;
+
+			Id = 0;
 		}
 
 		public override void InitializeGame()

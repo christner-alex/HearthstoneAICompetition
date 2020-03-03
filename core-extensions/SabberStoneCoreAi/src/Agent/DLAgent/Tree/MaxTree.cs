@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using System.Diagnostics;
+using SabberStoneCore.Model.Entities;
+using SabberStoneCore.Model;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
