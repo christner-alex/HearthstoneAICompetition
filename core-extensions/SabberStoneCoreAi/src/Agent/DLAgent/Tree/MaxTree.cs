@@ -209,7 +209,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				&& ChanceNodes.Count > 0 //or there are no chance nodes (nothing to search)
 				&& remaining > 0 //or there is no time left
 				&& watch.Elapsed.TotalSeconds < remaining //or if we are out of time
-				&& loops < Math.Pow(chance_subtrees.Count, 2) + ChanceNodes.Count) //or if there are far more loops than subtrees (not much new info being created)
+				&& loops < chance_subtrees.Count * Math.Log(chance_subtrees.Count) + ChanceNodes.Count) //or if there are far more loops than subtrees (not much new info being created)
 			{
 				ExpandChanceNode(time_per_node);
 				loops++;

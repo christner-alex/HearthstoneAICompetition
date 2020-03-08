@@ -11,18 +11,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Affero General Public License for more details.
 #endregion
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+using NumSharp;
 using SabberStoneCore.Config;
 using SabberStoneCore.Enums;
 using SabberStoneCore.Model;
-using SabberStoneCoreAi.POGame;
-using SabberStoneCoreAi.Agent.ExampleAgents;
 using SabberStoneCoreAi.Agent;
 using SabberStoneCoreAi.Agent.DLAgent;
-using NumSharp;
+using SabberStoneCoreAi.Agent.ExampleAgents;
+using SabberStoneCoreAi.POGame;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace SabberStoneCoreAi
 {
@@ -31,18 +31,9 @@ namespace SabberStoneCoreAi
 
 		private static void Main()
 		{
+			//END TESTING
+
 			Console.WriteLine("Setup gameConfig");
-
-			NDArray a = np.array(5f);
-			NDArray b = np.array(5f);
-			NDArray c = np.array(6f);
-
-			bool e = a.Equals(b);
-			bool f = a.Equals(c);
-
-			//List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
-			//List<Card> d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
-			//List<Card> d = Enumerable.Repeat(Cards.FromId("CS2_106"), 30).ToList(); //fiery war axe
 
 			List<Card> d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
 
@@ -60,11 +51,11 @@ namespace SabberStoneCoreAi
 			Console.WriteLine("Setup POGameHandler");
 			AbstractAgent player1 = new DLAgent();
 			AbstractAgent player2 = new FaceHunter();
-			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws:false);
+			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
 
 			Console.WriteLine("Simulate Games");
 			//gameHandler.PlayGame();
-			gameHandler.PlayGames(nr_of_games:1, addResultToGameStats:true, debug:false);
+			gameHandler.PlayGames(nr_of_games: 1, addResultToGameStats: true, debug: false);
 			GameStats gameStats = gameHandler.getGameStats();
 
 			gameStats.printResults();

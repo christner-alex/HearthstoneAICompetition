@@ -11,28 +11,25 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 	class Scorer
 	{
 
-		public readonly float WinScore = 100;
-		public readonly float LossScore = -100;
-
-		public readonly float opponent_score_modifier = 0.8f;
+		public readonly float WinScore;
+		public readonly float LossScore;
+		public readonly float opponent_score_modifier;
 
 		public readonly NDArray weights;
 
 		/// <summary>
 		/// Whether this state is a lethal state: one where the player has won.
 		/// </summary>
-		public bool IsLethal(POGame.POGame state) => state.CurrentOpponent.Hero.Health <= 0 && !IsLoss(state);
+		//public bool IsLethal(POGame.POGame state) => state.CurrentOpponent.Hero.Health <= 0 && !IsLoss(state);
 
 		/// <summary>
 		/// Whether this state is a loss state: one where the player has lost.
 		/// </summary>
-		public bool IsLoss(POGame.POGame state) =>
-			//TODO: check implementation
-			(state.CurrentOpponent != state.CurrentPlayer) && (state.CurrentPlayer.Hero.Health <= 0);
+		//public bool IsLoss(POGame.POGame state) =>(state.CurrentOpponent != state.CurrentPlayer) && (state.CurrentPlayer.Hero.Health <= 0);
 
 		private DLAgent agent;
 
-		public Scorer(DLAgent agent)
+		public Scorer(DLAgent agent, float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
 		{
 			weights = np.array(
 				0.1f, //friendly health change
@@ -50,12 +47,16 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				-0.3f //remaining mana
 			);
 
+			WinScore = win_score;
+			LossScore = loss_score;
+			opponent_score_modifier = opponent_modifier;
+
 			this.agent = agent;
 		}
 
-		public float CheckTerminal(POGame.POGame state)
+		/*
+		public float? CheckTerminal(POGame.POGame state)
 		{
-
 			if (IsLoss(state))
 			{
 				return LossScore;
@@ -65,8 +66,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				return WinScore;
 			}
 
-			return 0;
+			return null;
 		}
+		*/
 
 		/// <summary>
 		/// Calculate the reward of starting in 'state' and ending your turn on the state 'action'.
@@ -77,11 +79,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="start_state">The start of the turn to score</param>
 		/// <param name="end_state">The end of the turn to score</param>
 		/// <returns></returns>
-		public float TurnReward(POGame.POGame start_state, POGame.POGame end_state, int? friendly_id = null)
+		public float TurnReward(POGame.POGame start_state, POGame.POGame end_state)
 		{
-			float score = CheckTerminal(end_state);
-			if (score != 0) return score;
-
 			//TODO: revise score if needed
 
 			//get the controller
@@ -111,7 +110,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			int player_start_weapon = player_start.Hero.Weapon != null ? 1 : 0;
 			int player_end_weapon = player_end.Hero.Weapon != null ? 1 : 0;
 
-
+			//calculate differences in data between the old and new boards
 			float opponent_start_health = opponent_start.Hero.Health + opponent_start.Hero.Armor;
 			float opponent_end_health = opponent_end.Hero.Health + opponent_end.Hero.Armor;
 
@@ -153,11 +152,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="end_state">The state to estimate the score for</param>
 		/// <returns></returns>
-		public float ActionScore(POGame.POGame end_state, int? friendly_id = null)
+		public float ActionScore(POGame.POGame end_state)
 		{
-			float score = CheckTerminal(end_state);
-			if (score != 0) return score;
-
 			//TODO implement neural network
 			return 0;
 		}
@@ -169,11 +165,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="start_state"></param>
 		/// <param name="end_state"></param>
 		/// <returns></returns>
-		public float Q(POGame.POGame start_state, POGame.POGame end_state, int? friendly_id = null)
+		public float Q(POGame.POGame start_state, POGame.POGame end_state)
 		{
-			float score = CheckTerminal(end_state);
-			if (score != 0) return score;
-
 			return TurnReward(start_state, end_state) + ActionScore(end_state);
 		}
 
@@ -186,11 +179,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="p1_end">The state of the end of your turn/start of the opponent's turn</param>
 		/// <param name="p2_end">The state of the end of your opponent's turn/start of your next turn</param>
 		/// <returns></returns>
-		public float ScoreTransition(POGame.POGame p1_start, POGame.POGame p1_end, POGame.POGame p2_end, int? friendly_id = null)
+		public float ScoreTransition(POGame.POGame p1_start, POGame.POGame p1_end, POGame.POGame p2_end)
 		{
-			float score = CheckTerminal(p1_end);
-			if (score != 0) return score;
-
 			return TurnReward(p1_start, p1_end) - opponent_score_modifier * TurnReward(p1_end, p2_end);
 		}
 	}

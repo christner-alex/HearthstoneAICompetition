@@ -23,17 +23,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private Random rnd;
 
-		public List<MoveRecord> records;
-		public MoveRecord current_record;
+		private List<MoveRecord> records;
 
 		public float Epsilon { get; set; }
 		private bool do_random;
 
-		public POGame.POGame start_turn_state;
+		public POGame.POGame StartTurnState { get; private set; }
 
 		public bool debug = false;
-
-		public int Id { get; private set; }
 
 		public override void FinalizeAgent()
 		{
@@ -53,31 +50,27 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override PlayerTask GetMove(POGame.POGame poGame)
 		{
-			//make sure the id is of the friendly player
-			Id = poGame.CurrentPlayer.Id;
-
 			//if the watch is not running (i.e. if it is the start of your turn)...
 			if (!turn_watch.IsRunning)
 			{
 				turn_watch.Start();
 
 				//if a record of the previous turn had been started...
-				if(current_record != null)
+				if(records.Count > 0)
 				{
 					//mark the current input as the previous turn's sucessor and store the record
-					current_record.SetSuccsessor(poGame.getCopy());
-					records.Add(current_record);
+					records.Last().SetSuccsessor(poGame.getCopy());
 				}
 
 				//create a new record with the input as the start state
-				current_record = new MoveRecord();
-				current_record.SetState(poGame.getCopy());
+				records.Add(new MoveRecord());
+				records.Last().SetState(poGame.getCopy());
 
 				//with chance of epsilon, make random moves this turn.
 				do_random = rnd.NextDouble() < Epsilon;
 
 				//keep track of the state the turn starts on
-				start_turn_state = poGame;
+				StartTurnState = poGame;
 			}
 
 			PlayerTask move = null;
@@ -121,14 +114,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				turn_watch.Reset();
 
 				//TODO: find the true endturn state somehow
-				current_record.SetAction( poGame.Simulate(new List<PlayerTask>() { move }).Values.Last() );
+				records.Last().SetAction( poGame.Simulate(new List<PlayerTask>() { move }).Values.Last() );
 
 				//if the move is lethal, record it
 				if(tree != null && tree.FoundLethal)
 				{
 					//TODO: find a way to find if game is win, loss, or tie w/o the tree
-					current_record.SetTerminalStatus(1);
-					records.Add(current_record);
+					records.Last().SetTerminalStatus(1);
 				}
 
 				del_tree = true;
@@ -144,27 +136,23 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override void InitializeAgent()
 		{
+			Epsilon = 0.25f;
+
 			tree = null;
 			turn_watch = new Stopwatch();
+		}
+
+		public override void InitializeGame()
+		{
 			rnd = new Random();
 
 			scorer = new Scorer(this);
 
 			records = new List<MoveRecord>();
-			current_record = null;
 
 			do_random = false;
 
-			start_turn_state = null;
-
-			Epsilon = 0.25f;
-
-			Id = 0;
-		}
-
-		public override void InitializeGame()
-		{
-			
+			StartTurnState = null;
 		}
 
 		private bool CheckRep()

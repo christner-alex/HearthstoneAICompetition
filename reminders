@@ -1,5 +1,0 @@
-TODO:
-- Check the dictionary properties of NDArray as keys
-- Find how to easily get a particular player from a poGame, regardless of whos turn it is.
-- Change Scorer state input to NDArray?
-- Lower the bound condition of the Expand Stochestic section in MaxTree.Run from x^2 to xln(x)
