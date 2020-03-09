@@ -35,17 +35,17 @@ namespace SabberStoneCoreAi
 
 			Console.WriteLine("Setup gameConfig");
 
-			List<Card> d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
+			//List<Card> d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
 
 			var gameConfig = new GameConfig()
 			{
 				StartPlayer = 1,
 				Player1HeroClass = CardClass.MAGE,
 				Player2HeroClass = CardClass.HUNTER,
-				FillDecks = false,
+				FillDecks = true,
 				Shuffle = true,
-				Logging = false,
-				Player1Deck = d
+				Logging = false
+				//Player1Deck = d
 			};
 
 			Console.WriteLine("Setup POGameHandler");

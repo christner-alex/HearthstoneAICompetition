@@ -13,21 +13,21 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// MaxTrees whose roots represent possible outcomes of this node's Action
 		/// from its Predecessor's state
 		/// </summary>
-		private Dictionary<string,MaxTree> children_trees;
+		private Dictionary<GameRep,MaxTree> children_trees;
 
 		/// <summary>
 		/// The weight assigned to each of this node's children_trees,
 		/// corresponding to the number of times the corresponding state has been
 		/// observed by simulating this node's action from it's Predecessor's state
 		/// </summary>
-		private Dictionary<string, int> weights;
+		private Dictionary<GameRep, int> weights;
 
 		Random rnd;
 
 		public ChanceNode(DeterministicNode p, PlayerTask a, MaxTree t) : base(p, a, t)
 		{
-			children_trees = new Dictionary<string, MaxTree>();
-			weights = new Dictionary<string, int>();
+			children_trees = new Dictionary<GameRep, MaxTree>();
+			weights = new Dictionary<GameRep, int>();
 
 			rnd = new Random();
 
@@ -46,7 +46,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//simulate the result of this node's action
 			Dictionary<PlayerTask, POGame.POGame> result = Predecessor.State.Simulate(new List<PlayerTask> { Action });
-			string k = GameToRep.Convert(result[Action]);
+			GameRep k = new GameRep(result[Action]);
 
 			//if the resulting state has already been seen,
 			//merely increase the weight of the already existing
@@ -81,7 +81,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <returns>The subtree with state if found. Null otherwise.</returns>
 		public MaxTree FindSubtree(POGame.POGame state)
 		{
-			string k = GameToRep.Convert(state);
+			GameRep k = new GameRep(state);
 			return FindSubtree(k);
 		}
 		/// <summary>
@@ -89,7 +89,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="k">The state representaion to search for.</param>
 		/// <returns>The subtree with state if found. Null otherwise.</returns>
-		public MaxTree FindSubtree(string k)
+		public MaxTree FindSubtree(GameRep k)
 		{
 			MaxTree result = children_trees.ContainsKey(k) ? children_trees[k] : null;
 			return result;
@@ -109,7 +109,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			float numerator = 0;
-			foreach(string k in children_trees.Keys)
+			foreach(GameRep k in children_trees.Keys)
 			{
 				(float, Node) s = children_trees[k].GetScore();
 				numerator += s.Item1 * weights[k];
@@ -168,12 +168,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				Console.WriteLine("ChanceNode: Action, Predecessor, ot Tree is null");
 			}
 
-			foreach(KeyValuePair<string, MaxTree> p in children_trees)
+			foreach(KeyValuePair<GameRep, MaxTree> p in children_trees)
 			{
-				string s = p.Key;
+				GameRep s = p.Key;
 				MaxTree t = p.Value;
 
-				if(s != t.Root.StateRep)
+				if(!s.Equals(t.Root.StateRep))
 				{
 					result = false;
 					Console.WriteLine("ChanceNode: Tree.Root.StateRep is not it's key");

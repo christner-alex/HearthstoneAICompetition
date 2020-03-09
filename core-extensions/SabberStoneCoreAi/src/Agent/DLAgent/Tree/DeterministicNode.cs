@@ -12,12 +12,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// Summary the Deterministic nodes found that result from taking a deterministic action from this state
 		/// </summary>
-		private Dictionary<string, DeterministicNode> deterministic_children;
+		private Dictionary<GameRep, DeterministicNode> deterministic_children;
 
 		/// <summary>
 		/// Summary the Deterministic nodes found that result from taking a stochastic action from this state
 		/// </summary>
 		private List<ChanceNode> chance_children;
+
+		/// <summary>
+		/// Summary the Deterministic nodes found that result from taking a deterministic action from this state
+		/// </summary>
+		private Dictionary<GameRep, DeterministicNode> end_turn_children;
 
 		/// <summary>
 		/// The state this node represents
@@ -27,15 +32,16 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// The representaion of the state used for hashing, comparisons, and as NN input
 		/// </summary>
-		public string StateRep { get; private set; }
+		public GameRep StateRep { get; private set; }
 
 		public DeterministicNode(POGame.POGame s, DeterministicNode p, PlayerTask a, MaxTree t) : base(p,a,t)
 		{
 			State = s;
-			StateRep = GameToRep.Convert(s);
+			StateRep = new GameRep(s);
 
-			deterministic_children = new Dictionary<string, DeterministicNode>();
+			deterministic_children = new Dictionary<GameRep, DeterministicNode>();
 			chance_children = new List<ChanceNode>();
+			end_turn_children = new Dictionary<GameRep, DeterministicNode>();
 
 			CheckRep();
 		}
@@ -60,14 +66,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// except those that are already in this node's tree. Stops early if a lethal node is found.
 		/// </summary>
 		/// <returns>The list of Deterministic children found, chance children found, and a lethal node if found (null if not)</returns>
-		public (Dictionary<string, DeterministicNode>, List<ChanceNode>, DeterministicNode) FindChildren()
+		public (Dictionary<GameRep, DeterministicNode>, List<ChanceNode>, Dictionary<GameRep, DeterministicNode>, DeterministicNode) FindChildren()
 		{
 			CheckRep();
 
 			//if children were already found, just return them
-			if (deterministic_children.Count > 0 || chance_children.Count > 0)
+			if (deterministic_children.Count > 0 || chance_children.Count > 0 || end_turn_children.Count > 0)
 			{
-				return (deterministic_children, chance_children, null);
+				return (deterministic_children, chance_children, end_turn_children, null);
 			}
 
 			List<PlayerTask> options = State.CurrentPlayer.Options();
@@ -81,23 +87,30 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//and checking if all the results are the same
 				int action_type = 0;
 				List<POGame.POGame> sucessors = new List<POGame.POGame>();
-				List<string> sim_reps = new List<string>();
+				List<GameRep> sim_reps = new List<GameRep>();
 				for (int s = 0; s < Tree.deterministic_simulation_check; s++)
 				{
 					Dictionary<PlayerTask, POGame.POGame> result = State.Simulate(new List<PlayerTask> { option });
 					sucessors.Add(result[option]);
-					sim_reps.Add(GameToRep.Convert(result[option]));
+					sim_reps.Add(new GameRep(result[option]));
 
-					//TODO: chance state equality condition
-					if (sim_reps.Last() != sim_reps.First())
+					//if the new result is different from the last,
+					//treat it as random
+					if (!sim_reps.Last().Equals(sim_reps.First()))
 					{
 						action_type = 1;
 						break;
 					}
 				}
 
+				//if it is deterministic and the action is END TURN, set the action type accordingly
+				if(action_type == 0 && option.PlayerTaskType == PlayerTaskType.END_TURN)
+				{
+					action_type = 2;
+				}
+
 				POGame.POGame st = sucessors.Last();
-				string k = sim_reps.Last();
+				GameRep k = sim_reps.Last();
 				switch (action_type)
 				{
 					//if deterministic...
@@ -107,7 +120,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 						{
 							//...add it to this node's children
 							DeterministicNode n = new DeterministicNode(st, this, option, Tree);
-							deterministic_children.Add(n.StateRep, n);
+							deterministic_children.Add(k, n);
 
 							//if the discovered node is Lethal,
 							//set the winner to it
@@ -120,6 +133,21 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 						ChanceNode c = new ChanceNode(this, option, Tree);
 						chance_children.Add(c);
 						break;
+
+					//if end turn...
+					case 2:
+						//if the discovered state doesn't already in the tree...
+						if (!Tree.EndTurnNodes.ContainsKey(k) && !end_turn_children.ContainsKey(k))
+						{
+							//...add it to this node's children
+							DeterministicNode n = new DeterministicNode(st, this, option, Tree);
+							end_turn_children.Add(k, n);
+
+							//if the discovered node is Lethal,
+							//set the winner to it
+							winner = n.IsLethal ? n : null;
+						}
+						break;
 				}
 
 				//if a Lethal node had been found, stop searching
@@ -131,7 +159,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			CheckRep();
 
-			return (deterministic_children, chance_children, winner);
+			return (deterministic_children, chance_children, end_turn_children, winner);
 		}
 
 		public override float Score()
@@ -162,7 +190,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			bool result = true;
 
-			if(GameToRep.Convert(State) != StateRep)
+			if(!(new GameRep(State)).Equals(StateRep))
 			{
 				Console.WriteLine("A StateRep is not that of it's State");
 				result = false;
@@ -199,12 +227,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 			}
 
-			foreach (KeyValuePair<string, DeterministicNode> p in deterministic_children)
+			foreach (KeyValuePair<GameRep, DeterministicNode> p in deterministic_children)
 			{
 				DeterministicNode n = p.Value;
-				string s = p.Key;
+				GameRep s = p.Key;
 
-				if (n.StateRep != s)
+				if (!n.StateRep.Equals(s))
 				{
 					Console.WriteLine("DeterministicNode: A deterministic node's state rep is not it's key");
 					result = false;

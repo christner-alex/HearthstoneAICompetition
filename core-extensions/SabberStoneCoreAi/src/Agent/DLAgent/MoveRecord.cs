@@ -20,30 +20,30 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		}
 
 		public POGame.POGame State { get; private set; }
-		public string StateRep { get; private set; }
+		public GameRep StateRep { get; private set; }
 		public float Reward { get; private set; }
 		public POGame.POGame Action { get; private set; }
-		public string ActionRep { get; private set; }
+		public GameRep ActionRep { get; private set; }
 		public POGame.POGame Successor { get; private set; }
-		public string SuccessorRep { get; private set; }
+		public GameRep SuccessorRep { get; private set; }
 		public int TerminalStatus { get; private set; }
 
-		public void SetState(POGame.POGame state, string state_rep = null)
+		public void SetState(POGame.POGame state, GameRep state_rep = null)
 		{
 			State = state;
-			StateRep = state_rep ?? GameToRep.Convert(state);
+			StateRep = state_rep ?? new GameRep(state);
 		}
 
-		public void SetAction(POGame.POGame action, string action_rep = null)
+		public void SetAction(POGame.POGame action, GameRep action_rep = null)
 		{
 			Action = action;
-			ActionRep = action_rep ?? GameToRep.Convert(State);
+			ActionRep = action_rep ?? new GameRep(action);
 		}
 
-		public void SetSuccsessor(POGame.POGame successor, string successor_rep = null)
+		public void SetSuccsessor(POGame.POGame successor, GameRep successor_rep = null)
 		{
-			Successor = Action;
-			SuccessorRep = successor_rep ?? GameToRep.Convert(State);
+			Successor = successor;
+			SuccessorRep = successor_rep ?? new GameRep(successor);
 		}
 
 		public void SetTerminalStatus(int status)
@@ -58,12 +58,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				Reward = scorer.WinScore;
 			}
-			if (State != null && Action != null && TerminalStatus == -1)
+			else if (State != null && Action != null && TerminalStatus == -1)
 			{
 				Reward = scorer.LossScore;
 			}
 
-			if (State != null && Action != null && Successor != null)
+			else if (State != null && Action != null && Successor != null)
 			{
 				Reward = scorer.ScoreTransition(State, Action, Successor);
 			}

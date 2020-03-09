@@ -5,6 +5,7 @@ using SabberStoneCore.Model.Entities;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
@@ -20,11 +21,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public const int num_minions = 14;
 		public const int num_side_minions = 7;
 		public const int num_hand_cards = 10;
-		public const int num_boards = 6; 
+		//public const int num_boards = 6;
+		public const int num_boards = 1;
 
-		public GameRep(POGame.POGame poGame, List<MoveRecord> record)
+		public GameRep(POGame.POGame poGame /*, List<MoveRecord> record*/)
 		{
-			representation = Convert(poGame, record);
+			representation = Convert(poGame);
+		}
+
+		public GameRep(GameRep rep)
+		{
+			representation = rep.representation.copy();
 		}
 
 		public NDArray GetVectorRep => representation.copy();
@@ -36,10 +43,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override int GetHashCode()
 		{
-			return ((IStructuralEquatable)representation.ToArray<float>()).GetHashCode(EqualityComparer<float>.Default);
+			return ((IStructuralEquatable)representation.ToArray<int>()).GetHashCode(EqualityComparer<int>.Default);
 		}
 
-		public static NDArray Convert(POGame.POGame game, List<MoveRecord> record)
+		public static NDArray Convert(POGame.POGame game /*, List<MoveRecord> record*/)
 		{
 			Controller player = game.CurrentPlayer;
 
@@ -76,6 +83,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//get the vector representation for the current and last few boards
 			board_vecs.Add(BoardToVec(game));
+			/*
 			int added = 1;
 			int ind = record.Count - 1;
 			while(added < num_boards)
@@ -93,6 +101,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				ind--;
 			}
+			*/
 
 			//sort some lists according to the comparisons
 			NDArrayDLAgentComparer comp = new NDArrayDLAgentComparer();
@@ -102,7 +111,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//TODO: concetenate the vectors
 
-			return np.zeros(1);
+			NDArray result = np.concatenate(player_minion_vecs.Concat<NDArray>(opponent_minion_vecs).Concat<NDArray>(hand_vecs).Concat<NDArray>(board_vecs).ToArray());
+
+			return result;
 		}
 
 		public NDArray GetSlice(int start, int offset)
@@ -150,7 +161,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			if(game == null)
 			{
-				return np.zeros(board_vec_len);
+				return np.zeros(new Shape(board_vec_len), NPTypeCode.Int32);
 			}
 
 			int player_health = game.CurrentPlayer.Hero.Health + game.CurrentPlayer.Hero.Armor;
@@ -183,7 +194,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			if (minion == null)
 			{
-				return np.zeros(minion_vec_len);
+				return np.zeros(new Shape(minion_vec_len), NPTypeCode.Int32);
 			}
 
 			int attack = minion.AttackDamage;
@@ -206,31 +217,44 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			//TODO: add text, tribe
 
-			NDArray result = np.zeros(card_vec_len);
-			if(card==null)
+			NDArray result = np.zeros(new Shape(card_vec_len), NPTypeCode.Int32);
+			if (card==null)
 			{
 				return result;
 			}
 
+			int a = 0;
+			int b = 0;
+			int c = 0;
 			switch (card.Type)
 			{
 				case CardType.MINION:
-					result["4:"] = np.array(card.Tags[GameTag.COST], card.Tags[GameTag.ATK], card.Tags[GameTag.HEALTH]);
+					card.Tags.TryGetValue(GameTag.COST, out a);
+					card.Tags.TryGetValue(GameTag.ATK, out b);
+					card.Tags.TryGetValue(GameTag.HEALTH, out c);
 					result[0] = 1;
 					break;
 				case CardType.SPELL:
-					result["4:"] = np.array(card.Tags[GameTag.COST], 0, 0);
+					card.Tags.TryGetValue(GameTag.COST, out a);
+					b = 0;
+					c = 0;
 					result[1] = 1;
 					break;
 				case CardType.WEAPON:
-					result["4:"] = np.array(card.Tags[GameTag.COST], card.Tags[GameTag.ATK], card.Tags[GameTag.DURABILITY]);
+					card.Tags.TryGetValue(GameTag.COST, out a);
+					card.Tags.TryGetValue(GameTag.ATK, out b);
+					card.Tags.TryGetValue(GameTag.DURABILITY, out c);
 					result[2] = 1;
 					break;
 				case CardType.HERO:
-					result["4:"] = np.array(card.Tags[GameTag.COST], 0, card.Tags[GameTag.ARMOR]);
+					card.Tags.TryGetValue(GameTag.COST, out a);
+					b = 0;
+					card.Tags.TryGetValue(GameTag.ARMOR, out c);
 					result[3] = 1;
 					break;
 			}
+
+			result["4:"] = np.array(a, b, c);
 
 			return result;
 		}
@@ -246,9 +270,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				return c;
 			}
 
-			float[] diff = (y-x).ToArray<float>();
+			int[] diff = (y - x).ToArray<int>();
 
-			foreach (float n in diff)
+			foreach (int n in diff)
 			{
 				if (n > 0)
 				{
