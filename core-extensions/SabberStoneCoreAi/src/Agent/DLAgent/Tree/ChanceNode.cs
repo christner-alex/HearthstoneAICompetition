@@ -40,35 +40,35 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// of it's tree. Finally, add the new Tree to this node's tree's chance_subtree list
 		/// as well as to the chance_subtree lists of any MaxTree above it
 		/// </summary>
-		public void AddSubtree(float runtime)
+		public void AddSubtrees(float runtime, int loops = 3)
 		{
 			CheckRep();
 
-			//simulate the result of this node's action
-			Dictionary<PlayerTask, POGame.POGame> result = Predecessor.State.Simulate(new List<PlayerTask> { Action });
-			GameRep k = new GameRep(result[Action]);
-
-			//if the resulting state has already been seen,
-			//merely increase the weight of the already existing
-			//corresponing MaxTree
-			if (children_trees.ContainsKey(k))
+			for (int i = 0; i < loops; i++)
 			{
-				weights[k]++;
-			}
-			//otehrwise, create a new MaxTree with the resulting state as the root,
-			//add it thos this node's children trees,
-			//and have all MaxTrees above this node add it to their chance_subtrees
-			else
-			{
-				MaxTree child = new MaxTree(result[Action], Action, Tree);
+				//simulate the result of this node's action
+				Dictionary<PlayerTask, POGame.POGame> result = Predecessor.State.Simulate(new List<PlayerTask> { Action });
+				GameRep k = new GameRep(result[Action], Action?.PlayerTaskType != PlayerTaskType.END_TURN);
 
-				Stopwatch s = new Stopwatch();
-				s.Start();
-				child.FillDeterministicTree(runtime, s);
-				s.Stop();
+				//if the resulting state has already been seen,
+				//merely increase the weight of the already existing
+				//corresponing MaxTree
+				if (children_trees.ContainsKey(k))
+				{
+					weights[k]++;
+				}
+				//otehrwise, create a new MaxTree with the resulting state as the root,
+				//add it thos this node's children trees,
+				//and have all MaxTrees above this node add it to their chance_subtrees
+				else
+				{
+					MaxTree child = new MaxTree(result[Action], Action, Tree);
 
-				children_trees.Add(k,child);
-				weights.Add(k, 1);
+					child.FillDeterministicTree(runtime / loops);
+
+					children_trees.Add(k, child);
+					weights.Add(k, 1);
+				}
 			}
 
 			CheckRep();
@@ -81,7 +81,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <returns>The subtree with state if found. Null otherwise.</returns>
 		public MaxTree FindSubtree(POGame.POGame state)
 		{
-			GameRep k = new GameRep(state);
+			GameRep k = new GameRep(state, Action?.PlayerTaskType != PlayerTaskType.END_TURN);
 			return FindSubtree(k);
 		}
 		/// <summary>
@@ -185,6 +185,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					Console.WriteLine("ChanceNode: Tree.Root.Action is not this node's Action");
 				}
 			}
+
+			Debug.Assert(result);
 
 			return result;
 		}

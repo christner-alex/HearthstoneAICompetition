@@ -15,6 +15,7 @@ using NumSharp;
 using SabberStoneCore.Config;
 using SabberStoneCore.Enums;
 using SabberStoneCore.Model;
+using SabberStoneCore.Tasks.PlayerTasks;
 using SabberStoneCoreAi.Agent;
 using SabberStoneCoreAi.Agent.DLAgent;
 using SabberStoneCoreAi.Agent.ExampleAgents;
@@ -36,6 +37,7 @@ namespace SabberStoneCoreAi
 			Console.WriteLine("Setup gameConfig");
 
 			//List<Card> d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
+			List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
 
 			var gameConfig = new GameConfig()
 			{
@@ -44,12 +46,12 @@ namespace SabberStoneCoreAi
 				Player2HeroClass = CardClass.HUNTER,
 				FillDecks = true,
 				Shuffle = true,
-				Logging = false
-				//Player1Deck = d
+				Logging = false,
+				Player1Deck = d
 			};
 
 			Console.WriteLine("Setup POGameHandler");
-			AbstractAgent player1 = new DLAgent();
+			AbstractAgent player1 = new DLAgent(0.5f);
 			AbstractAgent player2 = new FaceHunter();
 			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
 

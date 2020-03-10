@@ -147,12 +147,28 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return reward;
 		}
 
+		public float TurnReward(GameRep start_state, GameRep end_state)
+		{
+			NDArray start_board = start_state.GetBoardVec();
+			NDArray end_board = end_state.GetBoardVec();
+
+			NDArray difference = end_board - start_board;
+
+			return difference.sum();
+		}
+
 		/// <summary>
 		/// Calculate the estimated reward of ending your turn on the state 'action' using a Neural Network.
 		/// </summary>
 		/// <param name="end_state">The state to estimate the score for</param>
 		/// <returns></returns>
 		public float ActionScore(POGame.POGame end_state)
+		{
+			//TODO implement neural network
+			return 0;
+		}
+
+		public float ActionScore(GameRep start_state, GameRep end_state)
 		{
 			//TODO implement neural network
 			return 0;
@@ -170,6 +186,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return TurnReward(start_state, end_state) + ActionScore(end_state);
 		}
 
+		public float Q(GameRep start_state, GameRep end_state)
+		{
+			return TurnReward(start_state, end_state) + ActionScore(start_state, end_state);
+		}
+
 		/// <summary>
 		/// Calculate the score observed from a (state,action,state) transistion, which is the difference between
 		/// the reward gained by the current player on their turn and the opposite of the reward gained by the
@@ -180,6 +201,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="p2_end">The state of the end of your opponent's turn/start of your next turn</param>
 		/// <returns></returns>
 		public float ScoreTransition(POGame.POGame p1_start, POGame.POGame p1_end, POGame.POGame p2_end)
+		{
+			return TurnReward(p1_start, p1_end) - opponent_score_modifier * TurnReward(p1_end, p2_end);
+		}
+
+		public float ScoreTransition(GameRep p1_start, GameRep p1_end, GameRep p2_end)
 		{
 			return TurnReward(p1_start, p1_end) - opponent_score_modifier * TurnReward(p1_end, p2_end);
 		}

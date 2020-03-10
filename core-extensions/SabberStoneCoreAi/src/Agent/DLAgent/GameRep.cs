@@ -24,9 +24,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		//public const int num_boards = 6;
 		public const int num_boards = 1;
 
-		public GameRep(POGame.POGame poGame /*, List<MoveRecord> record*/)
+		/// <summary>
+		/// A wrapper for an NDArray which serves both as a key for the MaxTree state dictionaries
+		/// and as input for the Scorer Neural Network.
+		/// </summary>
+		/// <param name="poGame">The PoGame to make a representation of.</param>
+		/// <param name="use_current_player"> True if the player considered friendly is poGame.CurrentPlayer.
+		/// False if it should be poGame.CurrentOpponent. This should be false if the state this is representing
+		/// is the result of an END_TURN action by poGame.CurrentPlayer</param>
+		public GameRep(POGame.POGame poGame, bool use_current_player = true /*, List<MoveRecord> record*/)
 		{
-			representation = Convert(poGame);
+			representation = Convert(poGame, use_current_player);
 		}
 
 		public GameRep(GameRep rep)
@@ -46,14 +54,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return ((IStructuralEquatable)representation.ToArray<int>()).GetHashCode(EqualityComparer<int>.Default);
 		}
 
-		public static NDArray Convert(POGame.POGame game /*, List<MoveRecord> record*/)
+		public static NDArray Convert(POGame.POGame game, bool use_current_player = true /*, List<MoveRecord> record*/)
 		{
-			Controller player = game.CurrentPlayer;
+			Controller current_player = use_current_player ? game.CurrentPlayer : game.CurrentOpponent;
 
 			//get board informations
-			Minion[] player_minions = player.BoardZone.GetAll();
-			Minion[] opponent_minions = player.Opponent.BoardZone.GetAll();
-			IPlayable[] player_hand = player.HandZone.GetAll();
+			Minion[] player_minions = current_player.BoardZone.GetAll();
+			Minion[] opponent_minions = current_player.Opponent.BoardZone.GetAll();
+			IPlayable[] player_hand = current_player.HandZone.GetAll();
 
 			//create storage for vector representations
 			List<NDArray> player_minion_vecs = new List<NDArray>();
@@ -148,45 +156,48 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			return slice.reshape(new int[] { num_hand_cards, card_vec_len });
 		}
-		public NDArray GetBoardVecs()
+		public NDArray GetBoardVec()
 		{
 			NDArray slice = GetSlice(
 				num_minions * minion_vec_len + num_hand_cards * card_vec_len,
 				num_boards * board_vec_len);
 
-			return slice.reshape(new int[] { num_boards, board_vec_len });
+			return slice.reshape(new int[] { board_vec_len });
 		}
 
-		public static NDArray BoardToVec(POGame.POGame game)
+		public static NDArray BoardToVec(POGame.POGame game, bool use_current_player = true)
 		{
 			if(game == null)
 			{
 				return np.zeros(new Shape(board_vec_len), NPTypeCode.Int32);
 			}
 
-			int player_health = game.CurrentPlayer.Hero.Health + game.CurrentPlayer.Hero.Armor;
-			int player_base_mana = game.CurrentPlayer.BaseMana;
-			int player_used_mana = game.CurrentPlayer.UsedMana;
-			int player_hand_size = game.CurrentPlayer.HandZone.Count;
-			int player_deck_size = game.CurrentPlayer.DeckZone.Count;
-			int player_board_size = game.CurrentPlayer.BoardZone.Count;
-			int player_secret_size = game.CurrentPlayer.SecretZone.Count;
-			int player_num_played = game.CurrentPlayer.NumCardsPlayedThisTurn;
-			int player_has_weapon = game.CurrentPlayer.Hero.Weapon != null ? 1 : 0;
+			Controller current_player = use_current_player ? game.CurrentPlayer : game.CurrentOpponent;
+			Controller opponent = current_player.Opponent;
 
-			int opponent_health = game.CurrentOpponent.Hero.Health + game.CurrentPlayer.Hero.Armor;
-			int opponent_base_mana = game.CurrentOpponent.BaseMana;
-			int opponent_used_mana = game.CurrentOpponent.UsedMana;
-			int opponent_hand_size = game.CurrentOpponent.HandZone.Count;
-			int opponent_deck_size = game.CurrentOpponent.DeckZone.Count;
-			int opponent_board_size = game.CurrentOpponent.BoardZone.Count;
-			int opponent_secret_size = game.CurrentOpponent.SecretZone.Count;
-			int opponent_num_played = game.CurrentOpponent.NumCardsPlayedThisTurn;
-			int opponent_has_weapon = game.CurrentOpponent.Hero.Weapon != null ? 1 : 0;
+			int player_health = current_player.Hero.Health + current_player.Hero.Armor;
+			int player_base_mana = current_player.BaseMana;
+			int player_remaining_mana = current_player.RemainingMana;
+			int player_hand_size = current_player.HandZone.Count;
+			int player_deck_size = current_player.DeckZone.Count;
+			int player_board_size = current_player.BoardZone.Count;
+			int player_secret_size = current_player.SecretZone.Count;
+			int player_num_played = current_player.NumCardsPlayedThisTurn;
+			int player_has_weapon = current_player.Hero.Weapon != null ? 1 : 0;
+
+			int opponent_health = opponent.Hero.Health + opponent.Hero.Armor;
+			int opponent_base_mana = opponent.BaseMana;
+			int opponent_remaining_mana = opponent.RemainingMana;
+			int opponent_hand_size = opponent.HandZone.Count;
+			int opponent_deck_size = opponent.DeckZone.Count;
+			int opponent_board_size = opponent.BoardZone.Count;
+			int opponent_secret_size = opponent.SecretZone.Count;
+			int opponent_num_played = opponent.NumCardsPlayedThisTurn;
+			int opponent_has_weapon = opponent.Hero.Weapon != null ? 1 : 0;
 
 			return np.array(
-				player_health, player_base_mana, player_used_mana, player_hand_size, player_deck_size, player_board_size, player_secret_size, player_num_played, player_has_weapon,
-				opponent_health, opponent_base_mana, opponent_used_mana, opponent_hand_size, opponent_deck_size, opponent_board_size, opponent_secret_size, opponent_num_played, opponent_has_weapon
+				player_health, player_base_mana, player_remaining_mana, player_hand_size, player_deck_size, player_board_size, player_secret_size, player_num_played, player_has_weapon,
+				opponent_health, opponent_base_mana, opponent_remaining_mana, opponent_hand_size, opponent_deck_size, opponent_board_size, opponent_secret_size, opponent_num_played, opponent_has_weapon
 				);
 		}
 

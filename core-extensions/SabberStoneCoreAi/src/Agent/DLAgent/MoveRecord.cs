@@ -37,7 +37,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public void SetAction(POGame.POGame action, GameRep action_rep = null)
 		{
 			Action = action;
-			ActionRep = action_rep ?? new GameRep(action);
+			ActionRep = action_rep ?? new GameRep(action, false);
 		}
 
 		public void SetSuccsessor(POGame.POGame successor, GameRep successor_rep = null)

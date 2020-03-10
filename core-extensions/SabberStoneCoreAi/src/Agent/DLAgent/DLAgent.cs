@@ -31,6 +31,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public POGame.POGame StartTurnState { get; private set; }
 
+		public GameRep StartTurnRep { get; private set; }
+
 		public bool debug = false;
 
 		public override void FinalizeAgent()
@@ -73,6 +75,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				//keep track of the state the turn starts on
 				StartTurnState = poGame;
+				StartTurnRep = new GameRep(poGame);
 			}
 
 			PlayerTask move = null;
@@ -107,6 +110,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				List<PlayerTask> l = poGame.CurrentPlayer.Options();
 				move = l[rnd.Next(l.Count)];
 
+				do_random = true;
+
 				del_tree = true;
 			}
 
@@ -138,8 +143,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override void InitializeAgent()
 		{
-			Epsilon = 0.25f;
-
 			tree = null;
 			turn_watch = new Stopwatch();
 		}
@@ -155,8 +158,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			do_random = false;
 
 			StartTurnState = null;
+			StartTurnRep = null;
 
 			current_record = null;
+		}
+
+		public DLAgent(float eps = 0f)
+		{
+			Epsilon = Math.Clamp(eps, 0f, 1f);
 		}
 
 		public List<MoveRecord> GetRecords()
