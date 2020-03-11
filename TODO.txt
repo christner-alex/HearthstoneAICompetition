@@ -1,0 +1,5 @@
+NEXT:
+- remove the old code from the Scorer
+- change MoveRecord usage to save the immediate stochastic reward
+- start implementing Trainer, which plays training games, updates netural network, and plays testing games
+- start implementing Neural Network
