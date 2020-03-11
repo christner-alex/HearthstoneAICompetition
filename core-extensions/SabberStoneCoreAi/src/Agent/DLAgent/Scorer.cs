@@ -15,7 +15,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public readonly float LossScore;
 		public readonly float opponent_score_modifier;
 
-		public readonly NDArray weights;
+		public readonly NDArray old_weights;
+		public readonly NDArray diff_weights;
+		public readonly NDArray end_weights;
 
 		/// <summary>
 		/// Whether this state is a lethal state: one where the player has won.
@@ -31,7 +33,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public Scorer(DLAgent agent, float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
 		{
-			weights = np.array(
+			old_weights = np.array(
 				0.1f, //friendly health change
 				1f, //friendly hand change
 				3f, //friendly board change
@@ -47,28 +49,45 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				-0.3f //remaining mana
 			);
 
+			diff_weights = np.array(
+				0.1f, //player_health
+				0f, //player_base_mana
+				0f, //player_remaining_mana
+				0.2f, //player_hand_size
+				0.5f, //player_board_size
+				0f, //player_deck_size
+				0.3f, //player_secret_size
+				0.1f, //player_total_atk
+				0.1f, //player_total_health
+				0.2f, //player taunt_health
+				0.5f, //player_weapon_atk
+				0.2f, //player_weapon_dur
+
+				-0.1f, //opponent_health
+				0f, //opponent_base_mana
+				0f, //opponent_remaining_mana
+				-0.2f, //opponent_hand_size
+				-0.5f, //opponent_board_size
+				0f, //opponent_deck_size
+				-0.3f, //opponent_secret_size
+				-0.1f, //opponent_total_atk
+				-0.1f, //opponent_total_health
+				-0.2f, //opponent taunt_health
+				-0.5f, //opponent_weapon_atk
+				-0.2f //opponent_weapon_dur
+			);
+
+			end_weights = np.zeros(new Shape(GameRep.board_vec_len), NPTypeCode.Float);
+			end_weights[2] = -1f;
+
 			WinScore = win_score;
 			LossScore = loss_score;
 			opponent_score_modifier = opponent_modifier;
 
 			this.agent = agent;
-		}
 
-		/*
-		public float? CheckTerminal(POGame.POGame state)
-		{
-			if (IsLoss(state))
-			{
-				return LossScore;
-			}
-			if (IsLethal(state))
-			{
-				return WinScore;
-			}
-
-			return null;
+			CheckRep();
 		}
-		*/
 
 		/// <summary>
 		/// Calculate the reward of starting in 'state' and ending your turn on the state 'action'.
@@ -143,18 +162,21 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				player_end.RemainingMana //remaining mana
 			);
 
-			float reward = np.dot(features, weights);
+			float reward = np.dot(features, old_weights);
 			return reward;
 		}
 
 		public float TurnReward(GameRep start_state, GameRep end_state)
 		{
-			NDArray start_board = start_state.GetBoardVec();
-			NDArray end_board = end_state.GetBoardVec();
+			NDArray start_board = start_state.GetBoardVec().astype(NPTypeCode.Float);
+			NDArray end_board = end_state.GetBoardVec().astype(NPTypeCode.Float);
 
-			NDArray difference = end_board - start_board;
+			NDArray difference = (end_board - start_board).astype(NPTypeCode.Float);
 
-			return difference.sum();
+			NDArray a = difference.dot(diff_weights).astype(NPTypeCode.Float);
+			NDArray b = end_board.dot(end_weights).astype(NPTypeCode.Float);
+			float result = (a + b).astype(NPTypeCode.Float).GetValue<float>(0);
+			return result;
 		}
 
 		/// <summary>
@@ -208,6 +230,24 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public float ScoreTransition(GameRep p1_start, GameRep p1_end, GameRep p2_end)
 		{
 			return TurnReward(p1_start, p1_end) - opponent_score_modifier * TurnReward(p1_end, p2_end);
+		}
+
+		private bool CheckRep()
+		{
+			if(!Parameters.doCheckRep)
+			{
+				return true;
+			}
+
+			bool result = true;
+
+			if(diff_weights.size != end_weights.size || end_weights.size != GameRep.board_vec_len)
+			{
+				Console.WriteLine("The weight vectors are not the right length");
+				result = false;
+			}
+
+			return result;
 		}
 	}
 }

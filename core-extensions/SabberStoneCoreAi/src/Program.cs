@@ -37,7 +37,7 @@ namespace SabberStoneCoreAi
 			Console.WriteLine("Setup gameConfig");
 
 			//List<Card> d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
-			List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
+			//List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
 
 			var gameConfig = new GameConfig()
 			{
@@ -46,19 +46,28 @@ namespace SabberStoneCoreAi
 				Player2HeroClass = CardClass.HUNTER,
 				FillDecks = true,
 				Shuffle = true,
-				Logging = false,
-				Player1Deck = d
+				Logging = false
+				//Player1Deck = d
 			};
 
 			Console.WriteLine("Setup POGameHandler");
-			AbstractAgent player1 = new DLAgent(0.5f);
+			DLAgent player1 = new DLAgent(0.0f);
 			AbstractAgent player2 = new FaceHunter();
 			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
 
 			Console.WriteLine("Simulate Games");
 			//gameHandler.PlayGame();
-			gameHandler.PlayGames(nr_of_games: 1, addResultToGameStats: true, debug: false);
+			gameHandler.PlayGame();
 			GameStats gameStats = gameHandler.getGameStats();
+
+			//finalize the records
+			List<MoveRecord> records = player1.GetRecords();
+			MoveRecord last = records.Last();
+			last.SetTerminalStatus(gameStats.PlayerA_Wins > 0 ? 1 : -1);
+			foreach (MoveRecord r in records)
+			{
+				r.CalcReward(player1.scorer);
+			}
 
 			gameStats.printResults();
 

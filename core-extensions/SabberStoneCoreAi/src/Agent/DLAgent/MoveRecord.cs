@@ -10,40 +10,46 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public MoveRecord()
 		{
 			State = null;
-			StateRep = null;
 			Reward = 0;
 			Action = null;
-			ActionRep = null;
 			Successor = null;
-			SuccessorRep = null;
 			TerminalStatus = 0;
 		}
 
-		public POGame.POGame State { get; private set; }
-		public GameRep StateRep { get; private set; }
+		public GameRep State { get; private set; }
 		public float Reward { get; private set; }
-		public POGame.POGame Action { get; private set; }
-		public GameRep ActionRep { get; private set; }
-		public POGame.POGame Successor { get; private set; }
-		public GameRep SuccessorRep { get; private set; }
+		public GameRep Action { get; private set; }
+		public GameRep Successor { get; private set; }
 		public int TerminalStatus { get; private set; }
 
-		public void SetState(POGame.POGame state, GameRep state_rep = null)
+		public void SetState(POGame.POGame state)
+		{
+			State = new GameRep(state);
+		}
+
+		public void SetAction(POGame.POGame action)
+		{
+			Action = new GameRep(action, false);
+		}
+
+		public void SetSuccsessor(POGame.POGame successor)
+		{
+			Successor = new GameRep(successor);
+		}
+
+		public void SetState(GameRep state)
 		{
 			State = state;
-			StateRep = state_rep ?? new GameRep(state);
 		}
 
-		public void SetAction(POGame.POGame action, GameRep action_rep = null)
+		public void SetAction(GameRep action)
 		{
 			Action = action;
-			ActionRep = action_rep ?? new GameRep(action, false);
 		}
 
-		public void SetSuccsessor(POGame.POGame successor, GameRep successor_rep = null)
+		public void SetSuccsessor(GameRep successor)
 		{
 			Successor = successor;
-			SuccessorRep = successor_rep ?? new GameRep(successor);
 		}
 
 		public void SetTerminalStatus(int status)
@@ -51,18 +57,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			TerminalStatus = Math.Clamp(status, -1, 1);
 		}
 
-		public void SetScore(Scorer scorer)
+		public void CalcReward(Scorer scorer)
 		{
 
-			if(State != null && Action != null && TerminalStatus == 1)
+			if(TerminalStatus == 1)
 			{
 				Reward = scorer.WinScore;
 			}
-			else if (State != null && Action != null && TerminalStatus == -1)
+			else if (TerminalStatus == -1)
 			{
 				Reward = scorer.LossScore;
 			}
-
 			else if (State != null && Action != null && Successor != null)
 			{
 				Reward = scorer.ScoreTransition(State, Action, Successor);

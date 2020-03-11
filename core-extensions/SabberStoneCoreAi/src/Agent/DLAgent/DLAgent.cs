@@ -42,13 +42,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override void FinalizeGame()
 		{
-			//calculate the observed score of each transistion
-			foreach(MoveRecord r in records)
-			{
-				r.SetScore(scorer);
-			}
 
-			//TODO: store the records elsewhere
 		}
 
 		public override PlayerTask GetMove(POGame.POGame poGame)
@@ -123,13 +117,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//TODO: find the true endturn state somehow
 				current_record.SetAction( poGame.Simulate(new List<PlayerTask>() { move }).Values.Last() );
 
-				//if the move is lethal, record it
-				if(tree != null && tree.FoundLethal)
-				{
-					//TODO: find a way to find if game is win, loss, or tie w/o the tree
-					current_record.SetTerminalStatus(1);
-				}
-
 				del_tree = true;
 			}
 
@@ -143,8 +130,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override void InitializeAgent()
 		{
-			tree = null;
-			turn_watch = new Stopwatch();
+
 		}
 
 		public override void InitializeGame()
@@ -161,6 +147,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			StartTurnRep = null;
 
 			current_record = null;
+
+			tree = null;
+
+			turn_watch = new Stopwatch();
 		}
 
 		public DLAgent(float eps = 0f)

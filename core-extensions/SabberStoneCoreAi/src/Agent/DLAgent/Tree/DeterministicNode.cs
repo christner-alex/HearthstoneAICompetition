@@ -167,16 +167,20 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 
 			Scorer scorer = Tree.Agent.scorer;
-			float score;
+			float score = 0;
 
-			if (!IsEndTurn)
+			if(IsLethal)
 			{
-				score = 0;
+				score = scorer.WinScore;
 			}
-			else
+			else if(IsLoss)
 			{
-				//Otherwise, return the NN score
-				score = scorer.Q(Tree.Agent.StartTurnState, State);
+				score = scorer.LossScore;
+			}
+			else if (IsEndTurn)
+			{
+				//If an end turn node, return the NN score
+				score = scorer.Q(Tree.Agent.StartTurnRep, StateRep);
 			}
 
 			return score;

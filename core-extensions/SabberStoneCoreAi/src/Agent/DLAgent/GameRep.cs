@@ -5,6 +5,7 @@ using SabberStoneCore.Model.Entities;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
@@ -14,15 +15,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 	{
 		private readonly NDArray representation;
 
-		public const int minion_vec_len = 11;
+		public const int minion_vec_len = 12;
 		public const int card_vec_len = 7;
-		public const int board_vec_len = 18;
+		public const int board_vec_len = 24;
 
-		public const int num_minions = 14;
-		public const int num_side_minions = 7;
-		public const int num_hand_cards = 10;
-		//public const int num_boards = 6;
-		public const int num_boards = 1;
+		public const int max_minions = 14;
+		public const int max_side_minions = 7;
+		public const int max_hand_cards = 10;
 
 		/// <summary>
 		/// A wrapper for an NDArray which serves both as a key for the MaxTree state dictionaries
@@ -35,11 +34,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public GameRep(POGame.POGame poGame, bool use_current_player = true /*, List<MoveRecord> record*/)
 		{
 			representation = Convert(poGame, use_current_player);
+
+			CheckRep();
 		}
 
 		public GameRep(GameRep rep)
 		{
 			representation = rep.representation.copy();
+
+			CheckRep();
 		}
 
 		public NDArray GetVectorRep => representation.copy();
@@ -69,13 +72,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			List<NDArray> hand_vecs = new List<NDArray>();
 			List<NDArray> board_vecs = new List<NDArray>();
 
+
 			//get the vector representations for the minions on the board
 			foreach ((Minion[], List<NDArray>) x in new (Minion[], List<NDArray>)[] { (player_minions, player_minion_vecs), (opponent_minions, opponent_minion_vecs) })
 			{
 				Minion[] minions = x.Item1;
 				List < NDArray > vec_list = x.Item2;
 
-				for (int i = 0; i < num_side_minions; i++)
+				for (int i = 0; i < max_side_minions; i++)
 				{
 					Minion m = i < minions.Length ? minions[i] : null;
 					vec_list.Add(MinionToVec(m));
@@ -83,33 +87,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			//get the vector representations for the cards in your hand
-			for (int i = 0; i < num_hand_cards; i++)
+			for (int i = 0; i < max_hand_cards; i++)
 			{
 				Card c = i < player_hand.Length ? player_hand[i].Card : null;
 				hand_vecs.Add(CardToVec(c));
 			}
 
 			//get the vector representation for the current and last few boards
-			board_vecs.Add(BoardToVec(game));
-			/*
-			int added = 1;
-			int ind = record.Count - 1;
-			while(added < num_boards)
-			{
-				MoveRecord rec = record[ind];
-
-				foreach(POGame.POGame g in new POGame.POGame[] { rec.Successor, rec.State })
-				{
-					if(g!=null && added < num_boards)
-					{
-						board_vecs.Add(BoardToVec(g));
-						added++;
-					}
-				}
-
-				ind--;
-			}
-			*/
+			board_vecs.Add(BoardToVec(game, use_current_player));
 
 			//sort some lists according to the comparisons
 			NDArrayDLAgentComparer comp = new NDArrayDLAgentComparer();
@@ -117,9 +102,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			opponent_minion_vecs.Sort(comp);
 			hand_vecs.Sort(comp);
 
-			//TODO: concetenate the vectors
-
-			NDArray result = np.concatenate(player_minion_vecs.Concat<NDArray>(opponent_minion_vecs).Concat<NDArray>(hand_vecs).Concat<NDArray>(board_vecs).ToArray());
+			//concatenate all the vectors into one
+			NDArray result = np.concatenate(
+				player_minion_vecs
+				.Concat<NDArray>(opponent_minion_vecs)
+				.Concat<NDArray>(hand_vecs)
+				.Concat<NDArray>(board_vecs)
+				.ToArray()
+				);
 
 			return result;
 		}
@@ -131,36 +121,36 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public NDArray GetMinionVecs()
 		{
 			NDArray slice = GetSlice(0,
-				num_minions * minion_vec_len);
+				max_minions * minion_vec_len);
 
-			return slice.reshape(new int[] { num_minions, minion_vec_len });
+			return slice.reshape(new int[] { max_minions, minion_vec_len });
 		}
 		public NDArray GetFriendlyMinionVecs()
 		{
 			NDArray slice = GetSlice(0,
-				num_side_minions * minion_vec_len);
+				max_side_minions * minion_vec_len);
 
-			return slice.reshape(new int[] { num_side_minions, minion_vec_len });
+			return slice.reshape(new int[] { max_side_minions, minion_vec_len });
 		}
 		public NDArray GetEnemyMinionVecs()
 		{
-			NDArray slice = GetSlice(num_side_minions * minion_vec_len,
-				num_side_minions * minion_vec_len);
+			NDArray slice = GetSlice(max_side_minions * minion_vec_len,
+				max_side_minions * minion_vec_len);
 
-			return slice.reshape(new int[] { num_side_minions, minion_vec_len });
+			return slice.reshape(new int[] { max_side_minions, minion_vec_len });
 		}
 		public NDArray GetHandVecs()
 		{
-			NDArray slice = GetSlice(num_minions * minion_vec_len,
-				num_hand_cards * card_vec_len);
+			NDArray slice = GetSlice(max_minions * minion_vec_len,
+				max_hand_cards * card_vec_len);
 
-			return slice.reshape(new int[] { num_hand_cards, card_vec_len });
+			return slice.reshape(new int[] { max_hand_cards, card_vec_len });
 		}
 		public NDArray GetBoardVec()
 		{
 			NDArray slice = GetSlice(
-				num_minions * minion_vec_len + num_hand_cards * card_vec_len,
-				num_boards * board_vec_len);
+				max_minions * minion_vec_len + max_hand_cards * card_vec_len,
+				board_vec_len);
 
 			return slice.reshape(new int[] { board_vec_len });
 		}
@@ -175,30 +165,39 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Controller current_player = use_current_player ? game.CurrentPlayer : game.CurrentOpponent;
 			Controller opponent = current_player.Opponent;
 
-			int player_health = current_player.Hero.Health + current_player.Hero.Armor;
-			int player_base_mana = current_player.BaseMana;
-			int player_remaining_mana = current_player.RemainingMana;
-			int player_hand_size = current_player.HandZone.Count;
-			int player_deck_size = current_player.DeckZone.Count;
-			int player_board_size = current_player.BoardZone.Count;
-			int player_secret_size = current_player.SecretZone.Count;
-			int player_num_played = current_player.NumCardsPlayedThisTurn;
-			int player_has_weapon = current_player.Hero.Weapon != null ? 1 : 0;
+			NDArray result = np.array(
+				current_player.Hero.Health + current_player.Hero.Armor, //player_health
+				current_player.BaseMana, //player_base_mana
+				current_player.RemainingMana, //player_remaining_mana
+				current_player.HandZone.Count, //player_hand_size
+				current_player.BoardZone.Count, //player_board_size
+				current_player.DeckZone.Count, //player_deck_size
+				current_player.SecretZone.Count, //player_secret_size
+				current_player.BoardZone.Sum(p => p.AttackDamage), //player_total_atk
+				current_player.BoardZone.Sum(p => p.Health), //player_total_health
+				current_player.BoardZone.Where(p => p.HasTaunt).Sum(p => p.Health), //player taunt_health
+				current_player.Hero.Weapon != null ? current_player.Hero.Weapon.AttackDamage : 0, //player_weapon_atk
+				current_player.Hero.Weapon != null ? current_player.Hero.Weapon.Durability : 0, //player_weapon_dur
 
-			int opponent_health = opponent.Hero.Health + opponent.Hero.Armor;
-			int opponent_base_mana = opponent.BaseMana;
-			int opponent_remaining_mana = opponent.RemainingMana;
-			int opponent_hand_size = opponent.HandZone.Count;
-			int opponent_deck_size = opponent.DeckZone.Count;
-			int opponent_board_size = opponent.BoardZone.Count;
-			int opponent_secret_size = opponent.SecretZone.Count;
-			int opponent_num_played = opponent.NumCardsPlayedThisTurn;
-			int opponent_has_weapon = opponent.Hero.Weapon != null ? 1 : 0;
+				opponent.Hero.Health + opponent.Hero.Armor, //opponent_health
+				opponent.BaseMana, //opponent_base_mana
+				opponent.RemainingMana, //opponent_remaining_mana
+				opponent.HandZone.Count, //opponent_hand_size
+				opponent.BoardZone.Count, //opponent_board_size
+				opponent.DeckZone.Count, //opponent_deck_size
+				opponent.SecretZone.Count, //opponent_secret_size
+				opponent.BoardZone.Sum(p => p.AttackDamage), //opponent_total_atk
+				opponent.BoardZone.Sum(p => p.Health), //opponent_total_health
+				opponent.BoardZone.Where(p => p.HasTaunt).Sum(p => p.Health), //opponent taunt_health
+				opponent.Hero.Weapon != null ? opponent.Hero.Weapon.AttackDamage : 0, //opponent_weapon_atk
+				opponent.Hero.Weapon != null ? opponent.Hero.Weapon.Durability : 0 //opponent_weapon_dur
 
-			return np.array(
-				player_health, player_base_mana, player_remaining_mana, player_hand_size, player_deck_size, player_board_size, player_secret_size, player_num_played, player_has_weapon,
-				opponent_health, opponent_base_mana, opponent_remaining_mana, opponent_hand_size, opponent_deck_size, opponent_board_size, opponent_secret_size, opponent_num_played, opponent_has_weapon
-				);
+
+			);
+
+			Debug.Assert(result.Shape[0] == board_vec_len);
+
+			return result;
 		}
 
 		public static NDArray MinionToVec(Minion minion)
@@ -211,17 +210,22 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			int attack = minion.AttackDamage;
 			int health = minion.Health;
 			int can_attack = minion.CanAttack ? 1 : 0;
-			int spell_power = minion.SpellPower;
 			int divine_shild = minion.HasDivineShield ? 1 : 0;
+			int elusive = minion.CantBeTargetedBySpells ? 1 : 0;
 			int frozen = minion.IsFrozen ? 1 : 0;
-			int stealthed = minion.HasStealth ? 1 : 0;
 			int lifesteal = minion.HasLifeSteal ? 1 : 0;
+			int silenced = minion.IsSilenced ? 1 : 0;
+			int spell_power = minion.SpellPower;
+			int stealthed = minion.HasStealth ? 1 : 0;
 			int taunt = minion.HasTaunt ? 1 : 0;
 			int windfury = minion.HasWindfury ? 1 : 0;
-			int elusive = minion.CantBeTargetedBySpells ? 1 : 0;
-			string text = minion.Card.Text;
+			//string text = minion.Card.Text; //TODO, add card text or something similar
 
-			return np.array(attack, health, can_attack, spell_power, divine_shild, frozen, stealthed, lifesteal, taunt, windfury, elusive);
+			NDArray result = np.array(attack, health, can_attack, divine_shild, elusive, frozen, lifesteal, silenced, spell_power, stealthed, taunt, windfury);
+
+			Debug.Assert(result.Shape[0] == minion_vec_len);
+
+			return result;
 		}
 
 		public static NDArray CardToVec(Card card)
@@ -267,6 +271,26 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			result["4:"] = np.array(a, b, c);
 
+			Debug.Assert(result.Shape[0] == card_vec_len);
+
+			return result;
+		}
+
+		private bool CheckRep()
+		{
+			if(!Parameters.doCheckRep)
+			{
+				return true;
+			}
+
+			bool result = true;
+			int s = representation.size;
+			int q = minion_vec_len * max_minions + card_vec_len * max_hand_cards + board_vec_len;
+			if (s != q)
+			{
+				Console.WriteLine("Representation is not the correct length: " + s.ToString() + "!=" + q.ToString());
+				result = false;
+			}
 			return result;
 		}
 	}

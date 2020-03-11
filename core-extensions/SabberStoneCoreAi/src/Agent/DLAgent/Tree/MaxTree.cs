@@ -496,13 +496,19 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 			}
 
-			/*
-			if(DeterministicNodes.Count > 0 && EndTurnNodes.Count > 0 && !EndTurnNodes.Values.All(DeterministicNodes.ContainsValue))
+			
+			if(EndTurnNodes.Values.Any(p => !p.IsEndTurn))
 			{
-				Console.WriteLine("MaxTree: Not all end turn nodes are in the deterministic list");
+				Console.WriteLine("MaxTree: not all the end turn nodes are end turn");
 				result = false;
 			}
-			*/
+
+			if (DeterministicNodes.Values.Any(p => p.IsEndTurn))
+			{
+				Console.WriteLine("MaxTree: a deterministic node is an end turn node");
+				result = false;
+			}
+
 
 			if (Root.Predecessor != null)
 			{
@@ -573,13 +579,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					{
 						if(n.GetType() == typeof(ChanceNode) && !ChanceNodes.Contains((ChanceNode)n))
 						{
-							Console.WriteLine("MaxTree: The last node in the queue is an end turn node but isn't in the endturn nodes");
+							Console.WriteLine("MaxTree: The last node in the queue is a chance node but isn't in the chance nodes list");
 							result = false;
 						}
 
-						if (n.GetType() == typeof(DeterministicNode) && !EndTurnNodes.ContainsValue((DeterministicNode)n))
+						if (n.GetType() == typeof(DeterministicNode) && !((DeterministicNode)n).IsLethal && !EndTurnNodes.ContainsValue((DeterministicNode)n))
 						{
-							Console.WriteLine("MaxTree: The last node in the queue an endturn node and turn node but isn't in the endturn nodes");
+							Console.WriteLine("MaxTree: The last node in the queue a non-lethal endturn node and turn node but isn't in the endturn nodes list");
 							result = false;
 						}
 					}
