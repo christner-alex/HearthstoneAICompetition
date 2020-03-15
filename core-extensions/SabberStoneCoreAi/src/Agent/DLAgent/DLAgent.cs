@@ -9,6 +9,7 @@ using SabberStoneCore.Model;
 using System.Linq;
 using System.Diagnostics;
 using SabberStoneCore.Model.Entities;
+using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -17,14 +18,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public Scorer scorer;
 
 		private MaxTree tree;
+		private MaxTree root_tree;
 
 		private float move_seconds = 60.0f;
 		private Stopwatch turn_watch;
 
 		private Random rnd;
 
-		private List<MoveRecord> records;
-		private MoveRecord current_record;
+		private GameRecord record;
 
 		public float Epsilon { get; set; }
 		private bool do_random;
@@ -52,24 +53,19 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				turn_watch.Start();
 
-				//if a record of the previous turn had been started...
-				if(current_record != null)
-				{
-					//mark the current input as the previous turn's sucessor and store the record
-					current_record.SetSuccsessor(poGame.getCopy());
-					records.Add(current_record);
-				}
-
-				//create a new record with the input as the start state
-				current_record = new MoveRecord();
-				current_record.SetState(poGame.getCopy());
-
 				//with chance of epsilon, make random moves this turn.
-				do_random = rnd.NextDouble() < Epsilon;
+				//do_random = rnd.NextDouble() < Epsilon;
+				do_random = false;
 
 				//keep track of the state the turn starts on
 				StartTurnState = poGame;
-				StartTurnRep = new GameRep(poGame);
+				StartTurnRep = new GameRep(poGame, true);
+
+				record.PushState(StartTurnRep);
+
+				//create a new tree for the start of the turn
+				tree = null;
+				root_tree = null;
 			}
 
 			PlayerTask move = null;
@@ -94,9 +90,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//run the tree for up to half of the remaining turn time
 				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) / 2.0f;
 				tree.Run(t);
-			}
 
-			bool del_tree = false;
+				if (root_tree == null) root_tree = tree;
+			}
 
 			//if a move has not been found, return a random move
 			if (move == null)
@@ -104,25 +100,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				List<PlayerTask> l = poGame.CurrentPlayer.Options();
 				move = l[rnd.Next(l.Count)];
 
+				//do random moves for the rest of the turn
 				do_random = true;
-
-				del_tree = true;
 			}
 
-			//if the move is an end turn action, reset the turn watch and delete the tree
+			//if the move is an end turn action, reset the turn watch and save the action taken
 			if (move.PlayerTaskType == PlayerTaskType.END_TURN)
 			{
 				turn_watch.Reset();
 
 				//TODO: find the true endturn state somehow
-				current_record.SetAction( poGame.Simulate(new List<PlayerTask>() { move }).Values.Last() );
-
-				del_tree = true;
-			}
-
-			if(del_tree)
-			{
-				tree = null;
+				record.PushAction(poGame.Simulate(new List<PlayerTask>() { move }) [move], root_tree);
 			}
 
 			return move;
@@ -139,16 +127,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			scorer = new Scorer(this);
 
-			records = new List<MoveRecord>();
+			record = new GameRecord();
 
 			do_random = false;
 
 			StartTurnState = null;
 			StartTurnRep = null;
 
-			current_record = null;
-
 			tree = null;
+			root_tree = null;
 
 			turn_watch = new Stopwatch();
 		}
@@ -158,14 +145,21 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Epsilon = Math.Clamp(eps, 0f, 1f);
 		}
 
-		public List<MoveRecord> GetRecords()
+		public GameRecord GetRecords()
 		{
-			return records;
+			return record;
 		}
 
 		private bool CheckRep()
 		{
-			return true;
+			if (!Parameters.doCheckRep)
+			{
+				return true;
+			}
+
+			bool result = true;
+
+			return result;
 		}
 	}
 }

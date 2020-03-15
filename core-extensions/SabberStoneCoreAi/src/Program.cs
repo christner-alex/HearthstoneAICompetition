@@ -36,8 +36,10 @@ namespace SabberStoneCoreAi
 
 			Console.WriteLine("Setup gameConfig");
 
-			//List<Card> d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
-			//List<Card> d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
+			List<Card> d;
+			//d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
+			d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
+			d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
 
 			var gameConfig = new GameConfig()
 			{
@@ -46,8 +48,8 @@ namespace SabberStoneCoreAi
 				Player2HeroClass = CardClass.HUNTER,
 				FillDecks = true,
 				Shuffle = true,
-				Logging = false
-				//Player1Deck = d
+				Logging = false,
+				Player1Deck = d
 			};
 
 			Console.WriteLine("Setup POGameHandler");
@@ -61,13 +63,9 @@ namespace SabberStoneCoreAi
 			GameStats gameStats = gameHandler.getGameStats();
 
 			//finalize the records
-			List<MoveRecord> records = player1.GetRecords();
-			MoveRecord last = records.Last();
-			last.SetTerminalStatus(gameStats.PlayerA_Wins > 0 ? 1 : -1);
-			foreach (MoveRecord r in records)
-			{
-				r.CalcReward(player1.scorer);
-			}
+			List<GameRecord.TransitionRecord> records = player1.GetRecords().ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
+
+			GameRecord.TransitionRecord r = records[0];
 
 			gameStats.printResults();
 

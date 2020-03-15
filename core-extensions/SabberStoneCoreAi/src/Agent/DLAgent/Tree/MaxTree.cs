@@ -163,7 +163,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				GameRep n_rep = taskqueue.Peek().Predecessor.StateRep;
 				PlayerTask act = taskqueue.Peek().Action;
-				GameRep input_rep = new GameRep(poGame);
+				GameRep input_rep = new GameRep(poGame, true);
 
 				//and the current front move is a valid one...
 				if (act != null && n_rep.Equals(input_rep) && poGame.Simulate(new List<PlayerTask>() { act }).Values.Last() != null)
@@ -226,6 +226,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				watch.Restart();
 
 			} while (!FoundLethal && remaining > 0f && expansion_list.Count > 0);
+			//continue looping while lethal hasn't been found, there is still time left, and there are deterministic nodes left to expand
 
 			watch.Stop();
 
@@ -434,7 +435,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//otherwise, return the end turn or chance node with the highest score
 			Node bestnode = null;
-			float bestscore = Single.NegativeInfinity;
+			float bestscore = float.MinValue;
 			int loops = 0;
 			foreach (Node n in ChanceNodes.Cast<Node>().Concat(EndTurnNodes.Values.Cast<Node>()))
 			{
@@ -452,6 +453,45 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			CheckRep();
 			return (bestscore, bestnode);
+		}
+
+		public class SparseTree
+		{
+			public GameRep Root;
+			public List<GameRep> DetActions;
+			public List<List<SparseTree>> ChanceActions;
+
+			public SparseTree(MaxTree tree)
+			{
+				Root = tree.Root.StateRep.Copy();
+
+				DetActions = (from rep in tree.EndTurnNodes.Keys select rep.Copy()).ToList();
+
+				ChanceActions = (from n in tree.ChanceNodes select (from t in n.ChildrenTrees.Values select new SparseTree(t)).ToList()).ToList();
+			}
+
+			public float Score(Scorer scorer)
+			{
+				float best_score = float.MinValue;
+				foreach(GameRep rep in DetActions)
+				{
+					float score = scorer.FutureRewardEstimate(Root, rep);
+					if(score > best_score)
+					{
+						best_score = score;
+					}
+				}
+
+				float bestDetScore = (from rep in DetActions select scorer.FutureRewardEstimate(Root, rep)).Max();
+				List<float> ChanceScores = (from t in ChanceActions select t.Average(x => x.Score(scorer))).ToList();
+				float bestChanceScore = ChanceScores.Max();
+				return Math.Max(bestDetScore, bestChanceScore);
+			}
+		}
+
+		public SparseTree CreateSparseTree()
+		{
+			return new SparseTree(this);
 		}
 
 		public bool CheckRep()

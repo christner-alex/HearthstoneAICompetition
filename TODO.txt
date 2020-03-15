@@ -1,7 +1,5 @@
 NEXT:
-- remove the old code from the Scorer
-- change MoveRecord usage to save the immediate stochastic reward
-- create 'sparse tree' that just stores possible successors and has a score function
-- change GameRep to store a few vectors instead of one?
+- test new GameRecord object
+- add more information that represents action to the board component of the state rep
 - start implementing Trainer, which plays training games, updates netural network, and plays testing games
 - start implementing Neural Network

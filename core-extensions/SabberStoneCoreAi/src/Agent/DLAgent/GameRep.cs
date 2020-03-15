@@ -13,7 +13,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class GameRep : IEquatable<GameRep>
 	{
-		private readonly NDArray representation;
+		//private readonly NDArray representation;
+
+		private readonly NDArray friendly_minion_rep;
+		private readonly NDArray enemy_minion_rep;
+		private readonly NDArray hand_rep;
+		private readonly NDArray board_rep;
 
 		public const int minion_vec_len = 12;
 		public const int card_vec_len = 7;
@@ -31,35 +36,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="use_current_player"> True if the player considered friendly is poGame.CurrentPlayer.
 		/// False if it should be poGame.CurrentOpponent. This should be false if the state this is representing
 		/// is the result of an END_TURN action by poGame.CurrentPlayer</param>
-		public GameRep(POGame.POGame poGame, bool use_current_player = true /*, List<MoveRecord> record*/)
+		public GameRep(POGame.POGame poGame, bool use_current_player)
 		{
-			representation = Convert(poGame, use_current_player);
-
-			CheckRep();
-		}
-
-		public GameRep(GameRep rep)
-		{
-			representation = rep.representation.copy();
-
-			CheckRep();
-		}
-
-		public NDArray GetVectorRep => representation.copy();
-
-		public bool Equals(GameRep other)
-		{
-			return representation.Equals(other.representation);
-		}
-
-		public override int GetHashCode()
-		{
-			return ((IStructuralEquatable)representation.ToArray<int>()).GetHashCode(EqualityComparer<int>.Default);
-		}
-
-		public static NDArray Convert(POGame.POGame game, bool use_current_player = true /*, List<MoveRecord> record*/)
-		{
-			Controller current_player = use_current_player ? game.CurrentPlayer : game.CurrentOpponent;
+			Controller current_player = use_current_player ? poGame.CurrentPlayer : poGame.CurrentOpponent;
 
 			//get board informations
 			Minion[] player_minions = current_player.BoardZone.GetAll();
@@ -72,12 +51,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			List<NDArray> hand_vecs = new List<NDArray>();
 			List<NDArray> board_vecs = new List<NDArray>();
 
-
 			//get the vector representations for the minions on the board
 			foreach ((Minion[], List<NDArray>) x in new (Minion[], List<NDArray>)[] { (player_minions, player_minion_vecs), (opponent_minions, opponent_minion_vecs) })
 			{
 				Minion[] minions = x.Item1;
-				List < NDArray > vec_list = x.Item2;
+				List<NDArray> vec_list = x.Item2;
 
 				for (int i = 0; i < max_side_minions; i++)
 				{
@@ -94,7 +72,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			//get the vector representation for the current and last few boards
-			board_vecs.Add(BoardToVec(game, use_current_player));
+			board_vecs.Add(BoardToVec(poGame, use_current_player));
 
 			//sort some lists according to the comparisons
 			NDArrayDLAgentComparer comp = new NDArrayDLAgentComparer();
@@ -102,57 +80,51 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			opponent_minion_vecs.Sort(comp);
 			hand_vecs.Sort(comp);
 
-			//concatenate all the vectors into one
-			NDArray result = np.concatenate(
-				player_minion_vecs
-				.Concat<NDArray>(opponent_minion_vecs)
-				.Concat<NDArray>(hand_vecs)
-				.Concat<NDArray>(board_vecs)
-				.ToArray()
-				);
+			//stack the results to get each representation
 
-			return result;
+			board_rep = board_vecs[0];
+
+			hand_rep = np.stack(hand_vecs.ToArray());
+
+			friendly_minion_rep = np.stack(player_minion_vecs.ToArray());
+
+			enemy_minion_rep = np.stack(opponent_minion_vecs.ToArray());
+
+			CheckRep();
 		}
 
-		public NDArray GetSlice(int start, int offset)
+		public GameRep(GameRep rep)
 		{
-			return representation[new Slice(start, start+offset)].copy();
-		}
-		public NDArray GetMinionVecs()
-		{
-			NDArray slice = GetSlice(0,
-				max_minions * minion_vec_len);
+			friendly_minion_rep = rep.FriendlyMinionRep;
+			enemy_minion_rep = rep.EnemyMinionRep;
+			board_rep = rep.BoardRep;
+			hand_rep = rep.HandRep;
 
-			return slice.reshape(new int[] { max_minions, minion_vec_len });
+			CheckRep();
 		}
-		public NDArray GetFriendlyMinionVecs()
-		{
-			NDArray slice = GetSlice(0,
-				max_side_minions * minion_vec_len);
 
-			return slice.reshape(new int[] { max_side_minions, minion_vec_len });
+		public GameRep Copy()
+		{
+			return new GameRep(this);
 		}
-		public NDArray GetEnemyMinionVecs()
-		{
-			NDArray slice = GetSlice(max_side_minions * minion_vec_len,
-				max_side_minions * minion_vec_len);
 
-			return slice.reshape(new int[] { max_side_minions, minion_vec_len });
+		public NDArray FriendlyMinionRep => friendly_minion_rep.copy();
+		public NDArray EnemyMinionRep => enemy_minion_rep.copy();
+		public NDArray BoardRep => board_rep.copy();
+		public NDArray HandRep => hand_rep.copy();
+		public NDArray FlatRep => np.concatenate(new NDArray[] { board_rep.flat, hand_rep.flat, friendly_minion_rep.flat, enemy_minion_rep.flat });
+
+		public bool Equals(GameRep other)
+		{
+			return hand_rep.Equals(other.hand_rep)
+				&& board_rep.Equals(other.board_rep)
+				&& friendly_minion_rep.Equals(other.friendly_minion_rep)
+				&& enemy_minion_rep.Equals(other.enemy_minion_rep);
 		}
-		public NDArray GetHandVecs()
-		{
-			NDArray slice = GetSlice(max_minions * minion_vec_len,
-				max_hand_cards * card_vec_len);
 
-			return slice.reshape(new int[] { max_hand_cards, card_vec_len });
-		}
-		public NDArray GetBoardVec()
+		public override int GetHashCode()
 		{
-			NDArray slice = GetSlice(
-				max_minions * minion_vec_len + max_hand_cards * card_vec_len,
-				board_vec_len);
-
-			return slice.reshape(new int[] { board_vec_len });
+			return ((IStructuralEquatable)FlatRep.ToArray<int>()).GetHashCode(EqualityComparer<int>.Default);
 		}
 
 		public static NDArray BoardToVec(POGame.POGame game, bool use_current_player = true)
@@ -284,13 +256,31 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			bool result = true;
-			int s = representation.size;
-			int q = minion_vec_len * max_minions + card_vec_len * max_hand_cards + board_vec_len;
-			if (s != q)
+
+			if(!hand_rep.Shape.Equals(new Shape(max_hand_cards,card_vec_len)))
 			{
-				Console.WriteLine("Representation is not the correct length: " + s.ToString() + "!=" + q.ToString());
+				Console.WriteLine("Hand is the wrong dimension");
 				result = false;
 			}
+
+			if (!board_rep.Shape.Equals(new Shape(board_vec_len)))
+			{
+				Console.WriteLine("Board is the wrong dimension");
+				result = false;
+			}
+
+			if (!friendly_minion_rep.Shape.Equals(new Shape(max_side_minions,minion_vec_len)))
+			{
+				Console.WriteLine("Friendly Minions is the wrong dimension");
+				result = false;
+			}
+
+			if (!enemy_minion_rep.Shape.Equals(new Shape(max_side_minions, minion_vec_len)))
+			{
+				Console.WriteLine("Enemy Minions is the wrong dimension");
+				result = false;
+			}
+
 			return result;
 		}
 	}

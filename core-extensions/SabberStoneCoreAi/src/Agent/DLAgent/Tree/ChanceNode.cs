@@ -13,7 +13,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// MaxTrees whose roots represent possible outcomes of this node's Action
 		/// from its Predecessor's state
 		/// </summary>
-		private Dictionary<GameRep,MaxTree> children_trees;
+		public Dictionary<GameRep, MaxTree> ChildrenTrees { get; }
 
 		/// <summary>
 		/// The weight assigned to each of this node's children_trees,
@@ -26,7 +26,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public ChanceNode(DeterministicNode p, PlayerTask a, MaxTree t) : base(p, a, t)
 		{
-			children_trees = new Dictionary<GameRep, MaxTree>();
+			ChildrenTrees = new Dictionary<GameRep, MaxTree>();
 			weights = new Dictionary<GameRep, int>();
 
 			rnd = new Random();
@@ -53,7 +53,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//if the resulting state has already been seen,
 				//merely increase the weight of the already existing
 				//corresponing MaxTree
-				if (children_trees.ContainsKey(k))
+				if (ChildrenTrees.ContainsKey(k))
 				{
 					weights[k]++;
 				}
@@ -66,7 +66,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 					child.FillDeterministicTree(runtime / loops);
 
-					children_trees.Add(k, child);
+					ChildrenTrees.Add(k, child);
 					weights.Add(k, 1);
 				}
 			}
@@ -91,7 +91,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <returns>The subtree with state if found. Null otherwise.</returns>
 		public MaxTree FindSubtree(GameRep k)
 		{
-			MaxTree result = children_trees.ContainsKey(k) ? children_trees[k] : null;
+			MaxTree result = ChildrenTrees.ContainsKey(k) ? ChildrenTrees[k] : null;
 			return result;
 		}
 
@@ -103,15 +103,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			CheckRep();
 
-			if (children_trees.Count == 0)
+			if (ChildrenTrees.Count == 0)
 			{
 				return 0;
 			}
 
 			float numerator = 0;
-			foreach(GameRep k in children_trees.Keys)
+			foreach(GameRep k in ChildrenTrees.Keys)
 			{
-				(float, Node) s = children_trees[k].GetScore();
+				(float, Node) s = ChildrenTrees[k].GetScore();
 				numerator += s.Item1 * weights[k];
 			}
 
@@ -126,12 +126,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <returns>A random child tree of this node. Null if node exist.</returns>
 		public MaxTree RandomSubTree()
 		{
-			if(children_trees.Count==0)
+			if(ChildrenTrees.Count==0)
 			{
 				return null;
 			}
 
-			return children_trees.Values.ToList()[rnd.Next(children_trees.Count)];
+			return ChildrenTrees.Values.ToList()[rnd.Next(ChildrenTrees.Count)];
 		}
 
 		public override bool CheckRep()
@@ -143,7 +143,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			bool result = true;
 
-			if (!(children_trees.Keys.Count == weights.Keys.Count && children_trees.Keys.All(weights.Keys.ToList().Contains)))
+			if (!(ChildrenTrees.Keys.Count == weights.Keys.Count && ChildrenTrees.Keys.All(weights.Keys.ToList().Contains)))
 			{
 				result = false;
 				Console.WriteLine("ChanceNode: children trees list and weight list are not the same");
@@ -168,7 +168,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				Console.WriteLine("ChanceNode: Action, Predecessor, ot Tree is null");
 			}
 
-			foreach(KeyValuePair<GameRep, MaxTree> p in children_trees)
+			foreach(KeyValuePair<GameRep, MaxTree> p in ChildrenTrees)
 			{
 				GameRep s = p.Key;
 				MaxTree t = p.Value;

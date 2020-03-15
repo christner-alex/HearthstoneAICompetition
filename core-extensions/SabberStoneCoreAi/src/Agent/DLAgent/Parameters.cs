@@ -10,6 +10,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public static bool doCheckRep = true;
 		public static bool AgentPrintDebug = true;
 		public static bool MaxTreePrintDebug = true;
-		public static bool NodeTreePrintDebug = true;
+		public static bool NodePrintDebug = true;
 	}
 }
