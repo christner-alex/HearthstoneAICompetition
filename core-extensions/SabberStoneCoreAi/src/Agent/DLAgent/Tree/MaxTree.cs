@@ -95,7 +95,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Root = new DeterministicNode(root_game, null, root_action, this);
 
 			DeterministicNodes = new Dictionary<GameRep, DeterministicNode>();
-			DeterministicNodes.Add(Root.StateRep, Root);
 			ChanceNodes = new List<ChanceNode>();
 			EndTurnNodes = new Dictionary<GameRep, DeterministicNode>();
 
@@ -139,6 +138,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				EndTurnNodes.Add(Root.StateRep, Root);
 				done = true;
+			}
+			else
+			{
+				DeterministicNodes.Add(Root.StateRep, Root);
 			}
 			if (done)
 			{

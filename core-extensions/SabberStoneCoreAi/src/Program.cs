@@ -48,8 +48,8 @@ namespace SabberStoneCoreAi
 				Player2HeroClass = CardClass.HUNTER,
 				FillDecks = true,
 				Shuffle = true,
-				Logging = false,
-				Player1Deck = d
+				Logging = false
+				//Player1Deck = d
 			};
 
 			Console.WriteLine("Setup POGameHandler");

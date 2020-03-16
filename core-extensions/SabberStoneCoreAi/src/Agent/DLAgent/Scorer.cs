@@ -34,20 +34,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				0.1f, //player_total_health
 				0.2f, //player taunt_health
 				0.5f, //player_weapon_atk
-				0.2f, //player_weapon_dur
-
-				-0.1f, //opponent_health
-				0f, //opponent_base_mana
-				0f, //opponent_remaining_mana
-				-0.2f, //opponent_hand_size
-				-0.5f, //opponent_board_size
-				0f, //opponent_deck_size
-				-0.3f, //opponent_secret_size
-				-0.1f, //opponent_total_atk
-				-0.1f, //opponent_total_health
-				-0.2f, //opponent taunt_health
-				-0.5f, //opponent_weapon_atk
-				-0.2f //opponent_weapon_dur
+				0.2f //player_weapon_dur
 			);
 
 			end_weights = np.zeros(new Shape(GameRep.board_vec_len), NPTypeCode.Float);
@@ -67,17 +54,25 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="start_state">The GameRep representing the start of the turn meant to be scores</param>
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
-		public float TurnReward(GameRep start_state, GameRep end_state)
+		public float TurnReward(GameRep start_state, GameRep end_state, bool modify_enemy_score = false)
 		{
 			NDArray start_board = start_state.BoardRep.astype(NPTypeCode.Float);
 			NDArray end_board = end_state.BoardRep.astype(NPTypeCode.Float);
 
-			NDArray difference = end_board - start_board;
+			NDArray friendly_start_board = start_board[0];
+			NDArray enemy_start_board = start_board[1];
+			NDArray friendly_end_board = end_board[0];
+			NDArray enemy_end_board = end_board[1];
 
-			NDArray a = difference.dot(diff_weights);
-			NDArray b = end_board.dot(end_weights);
-			float result = (a + b).GetValue<float>(0);
-			return result;
+			NDArray friendly_difference = friendly_end_board - friendly_start_board;
+			NDArray enemy_difference = enemy_end_board - enemy_start_board;
+
+			float modify = modify_enemy_score ? 1f : OpponentScoreModifier;
+			NDArray result = friendly_difference.dot(diff_weights)
+				- modify * enemy_difference.dot(diff_weights)
+				+ friendly_end_board.dot(end_weights)
+				- modify * enemy_end_board.dot(end_weights);
+			return result.astype(NPTypeCode.Float).ToArray<float>()[0];
 		}
 
 		/// <summary>

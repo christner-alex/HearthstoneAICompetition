@@ -72,9 +72,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			for (int i=0; i<Actions.Count; i++)
 			{
 				TransitionRecord r = new TransitionRecord();
-				r.state = States[i];
-				r.action = Actions[i];
-				r.successor = i+1 < States.Count ? States[i + 1] : null;
+				r.state = States[i].Copy();
+				r.action = Actions[i].Copy();
+				r.successor = i+1 < States.Count ? States[i + 1].Copy() : null;
 				r.successor_actions = i + 1 < SuccessorTrees.Count ? SuccessorTrees[i + 1] : null;
 
 				//if the action lead to the terminal state, get the win or loss score
