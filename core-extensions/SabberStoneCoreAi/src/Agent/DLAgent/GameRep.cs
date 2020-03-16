@@ -37,9 +37,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="use_current_player"> True if the player considered friendly is poGame.CurrentPlayer.
 		/// False if it should be poGame.CurrentOpponent. This should be false if the state this is representing
 		/// is the result of an END_TURN action by poGame.CurrentPlayer</param>
-		public GameRep(POGame.POGame poGame, bool use_current_player)
+		public GameRep(POGame.POGame poGame)
 		{
-			Controller current_player = use_current_player ? poGame.CurrentPlayer : poGame.CurrentOpponent;
+			Controller current_player = poGame.CurrentPlayer;
 
 			//get board informations
 			Minion[] player_minions = current_player.BoardZone.GetAll();
@@ -50,7 +50,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			List<NDArray> player_minion_vecs = new List<NDArray>();
 			List<NDArray> opponent_minion_vecs = new List<NDArray>();
 			List<NDArray> hand_vecs = new List<NDArray>();
-			List<NDArray> board_vecs = new List<NDArray>();
 
 			//get the vector representations for the minions on the board
 			foreach ((Minion[], List<NDArray>) x in new (Minion[], List<NDArray>)[] { (player_minions, player_minion_vecs), (opponent_minions, opponent_minion_vecs) })
@@ -72,9 +71,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				hand_vecs.Add(CardToVec(c));
 			}
 
-			//get the vector representation for the current and last few boards
-			board_vecs.Add(BoardToVec(poGame, use_current_player));
-
 			//sort some lists according to the comparisons
 			NDArrayDLAgentComparer comp = new NDArrayDLAgentComparer();
 			player_minion_vecs.Sort(comp);
@@ -83,7 +79,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//stack the results to get each representation
 
-			board_rep = board_vecs[0];
+			board_rep = BoardToVec(poGame);
 
 			hand_rep = np.stack(hand_vecs.ToArray());
 
@@ -146,14 +142,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			);
 		}
 
-		public static NDArray BoardToVec(POGame.POGame game, bool use_current_player)
+		public static NDArray BoardToVec(POGame.POGame game)
 		{
 			if(game == null)
 			{
 				return np.zeros(new Shape(max_num_boards, board_vec_len), NPTypeCode.Int32);
 			}
 
-			Controller current_player = use_current_player ? game.CurrentPlayer : game.CurrentOpponent;
+			Controller current_player = game.CurrentPlayer;
 			Controller opponent = current_player.Opponent;
 
 			NDArray friendly = BoardSideToVec(game, current_player);

@@ -59,9 +59,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				//keep track of the state the turn starts on
 				StartTurnState = poGame;
-				StartTurnRep = new GameRep(poGame, true);
+				StartTurnRep = new GameRep(poGame);
 
-				record.PushState(StartTurnRep);
+				record.PushState(StartTurnRep.Copy());
 
 				//create a new tree for the start of the turn
 				tree = null;
@@ -110,7 +110,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				turn_watch.Reset();
 
 				//TODO: find the true endturn state somehow
-				record.PushAction(poGame.Simulate(new List<PlayerTask>() { move }) [move], root_tree);
+				record.PushAction(poGame, root_tree);
 			}
 
 			return move;

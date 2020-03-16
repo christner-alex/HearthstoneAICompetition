@@ -40,6 +40,11 @@ namespace SabberStoneCoreAi
 			//d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
 			d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
 			d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
+			d = Enumerable.Repeat(Cards.FromId("CS2_023"), 30).ToList(); //arcane intellect
+			d = Enumerable.Repeat(Cards.FromId("CS2_023"), 10).Concat(//arcane intellect
+				Enumerable.Repeat(Cards.FromId("EX1_008"), 10)).Concat(//argent squire
+				Enumerable.Repeat(Cards.FromId("CS2_029"), 10)).ToList();//fireball
+			//d = Enumerable.Repeat(Cards.FromId("BOT_101"), 30).ToList(); //astral rift
 
 			var gameConfig = new GameConfig()
 			{
@@ -49,7 +54,6 @@ namespace SabberStoneCoreAi
 				FillDecks = true,
 				Shuffle = true,
 				Logging = false
-				//Player1Deck = d
 			};
 
 			Console.WriteLine("Setup POGameHandler");

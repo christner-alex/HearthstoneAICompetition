@@ -43,7 +43,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public bool PushState(POGame.POGame game)
 		{
-			return PushState(new GameRep(game, true));
+			return PushState(new GameRep(game));
 		}
 
 		public bool PushAction(GameRep action, SparseTree stree)
@@ -62,7 +62,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public bool PushAction(POGame.POGame game, MaxTree mtree)
 		{
-			return PushAction(new GameRep(game, false), mtree.CreateSparseTree());
+			return PushAction(new GameRep(game), mtree.CreateSparseTree());
 		}
 
 		public List<TransitionRecord> ConstructTransitions(Scorer scorer, bool won)

@@ -28,7 +28,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				0f, //player_remaining_mana
 				0.2f, //player_hand_size
 				0.5f, //player_board_size
-				0f, //player_deck_size
+				0.01f, //player_deck_size
 				0.3f, //player_secret_size
 				0.1f, //player_total_atk
 				0.1f, //player_total_health

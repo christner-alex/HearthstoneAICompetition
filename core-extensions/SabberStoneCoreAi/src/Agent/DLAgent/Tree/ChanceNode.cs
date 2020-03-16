@@ -48,7 +48,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				//simulate the result of this node's action
 				Dictionary<PlayerTask, POGame.POGame> result = Predecessor.State.Simulate(new List<PlayerTask> { Action });
-				GameRep k = new GameRep(result[Action], Action?.PlayerTaskType != PlayerTaskType.END_TURN);
+				GameRep k = new GameRep(result[Action]);
 
 				//if the resulting state has already been seen,
 				//merely increase the weight of the already existing
@@ -64,7 +64,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				{
 					MaxTree child = new MaxTree(result[Action], Action, Tree);
 
-					child.FillDeterministicTree(runtime / loops);
+					child.FillDeterministicTree(runtime);
 
 					ChildrenTrees.Add(k, child);
 					weights.Add(k, 1);
@@ -81,7 +81,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <returns>The subtree with state if found. Null otherwise.</returns>
 		public MaxTree FindSubtree(POGame.POGame state)
 		{
-			GameRep k = new GameRep(state, Action?.PlayerTaskType != PlayerTaskType.END_TURN);
+			GameRep k = new GameRep(state);
 			return FindSubtree(k);
 		}
 		/// <summary>

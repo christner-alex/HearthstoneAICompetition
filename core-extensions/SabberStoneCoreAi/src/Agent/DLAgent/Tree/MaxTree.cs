@@ -22,11 +22,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public List<ChanceNode> ChanceNodes { get; }
 
 		/// <summary>
-		/// The nodes in this tree representing the result of taking an end-turn action from it's predecessor.
-		/// </summary>
-		public Dictionary<GameRep, DeterministicNode> EndTurnNodes { get; }
-
-		/// <summary>
 		/// All Maxtrees descended from this MaxTree.
 		/// </summary>
 		private List<MaxTree> chance_subtrees;
@@ -39,7 +34,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// The last node in the most recently calculated taskqueue. Null of none have been calculated yet.
 		/// </summary>
-		private Node queueTerminal;
+		private Node taskTerminal;
 
 		/// <summary>
 		/// The MaxTree that this tree is a direct descendant of.
@@ -58,12 +53,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		private DeterministicNode lethal_node;
 
+		/// <summary>
+		/// True if a lethal node has been found by this tree. False otherwise.
+		/// </summary>
 		public bool FoundLethal => lethal_node != null;
 
 		/// <summary>
 		/// A list of nodes to be searched in the FillDeterministicTree function.
 		/// </summary>
-		private List<DeterministicNode> expansion_list;
+		private Stack<DeterministicNode> expansion_list;
 
 		/// <summary>
 		/// The number of times to simulate a State Action pair to determine whether it is Deterministic or Stochastic.
@@ -95,14 +93,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Root = new DeterministicNode(root_game, null, root_action, this);
 
 			DeterministicNodes = new Dictionary<GameRep, DeterministicNode>();
+			DeterministicNodes.Add(Root.StateRep, Root);
 			ChanceNodes = new List<ChanceNode>();
-			EndTurnNodes = new Dictionary<GameRep, DeterministicNode>();
 
-			expansion_list = new List<DeterministicNode>();
-			expansion_list.Add(Root);
+			expansion_list = new Stack<DeterministicNode>();
+			expansion_list.Push(Root);
 
 			taskqueue = new Queue<Node>();
-			queueTerminal = null;
+			taskTerminal = null;
 
 			chance_subtrees = new List<MaxTree>();
 
@@ -124,26 +122,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//if the root is a loss, a win, or an end turn
 			//then there are no nodes to expand
-			bool done = false;
-			if (Root.IsLoss)
-			{
-				done = true;
-			}
 			if (Root.IsLethal)
 			{
 				lethal_node = Root;
-				done = true;
 			}
-			if (Root.IsEndTurn)
-			{
-				EndTurnNodes.Add(Root.StateRep, Root);
-				done = true;
-			}
-			else
-			{
-				DeterministicNodes.Add(Root.StateRep, Root);
-			}
-			if (done)
+			if (Root.IsLoss || Root.IsLethal)
 			{
 				expansion_list.Clear();
 			}
@@ -161,13 +144,21 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			CheckRep();
 
 			PlayerTask result = null;
+			GameRep input_rep = new GameRep(poGame);
 
-			if(poGame != null && taskqueue.Count != 0)
+			//if the poGame state is the same as the terminal node's...
+			if(taskTerminal != null && taskqueue.Count == 0
+				&& taskTerminal.GetType() == typeof(DeterministicNode)
+				&& ((DeterministicNode)taskTerminal).StateRep.Equals(input_rep))
+			{
+				//the return the end turn action
+				result = EndTurnTask.Any(poGame.CurrentPlayer);
+			}
+			else if (poGame != null && taskqueue.Count != 0)
 			{
 				GameRep n_rep = taskqueue.Peek().Predecessor.StateRep;
 				PlayerTask act = taskqueue.Peek().Action;
-				GameRep input_rep = new GameRep(poGame, true);
-
+				
 				//and the current front move is a valid one...
 				if (act != null && n_rep.Equals(input_rep) && poGame.Simulate(new List<PlayerTask>() { act }).Values.Last() != null)
 				{
@@ -193,6 +184,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			CheckRep();
 
 			float remaining = runtime;
+
 			int chance_expansions = 0;
 
 			Stopwatch watch = new Stopwatch();
@@ -209,19 +201,16 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				float time_per_node = 0.5f * remaining / (ChanceNodes.Count + 1);
 				//time_per_node = Math.Max(time_per_node, (time_per_node + fill_time) / 2);
-
-				watch.Restart();
-				bool expansion_cap = false;
-				while (!FoundLethal //break if there is a lethal node (no need to search furnther)
+				 while (!FoundLethal //break if there is a lethal node (no need to search furnther)
 					&& ChanceNodes.Count > 0 //or there are no chance nodes (nothing to search)
 					&& watch.Elapsed.TotalSeconds < remaining //or if we are out of time
-															  //or if there are far more loops than subtrees (not much new info being created)
-					&& !expansion_cap
+					//or there are far more expansions than there are trees (no no info being created)
+					&& chance_expansions < chance_subtrees.Count * Math.Log(chance_subtrees.Count+1) + ChanceNodes.Count
+					&& chance_subtrees.Count < 10 * ChanceNodes.Count //or there are far more subtrees than chance nodes
 					)
 				{
 					ExpandChanceNode(time_per_node);
 					chance_expansions++;
-					expansion_cap = chance_expansions >= chance_subtrees.Count * Math.Log(chance_subtrees.Count) + ChanceNodes.Count;
 				}
 
 				//get the remaining time
@@ -247,12 +236,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// If the last node isn't a Chance Node or such a subtree doesn't exist, returns null</returns>
 		public MaxTree FindSubtree(POGame.POGame state)
 		{
-			if (queueTerminal == null || queueTerminal.GetType() != typeof(ChanceNode))
+			if (taskTerminal == null || taskTerminal.GetType() != typeof(ChanceNode))
 			{
 				return null;
 			}
 
-			MaxTree result = ((ChanceNode)queueTerminal).FindSubtree(state);
+			MaxTree result = ((ChanceNode)taskTerminal).FindSubtree(state);
 			return result;
 		}
 
@@ -271,35 +260,26 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			CheckRep();
 
 			while (expansion_list.Count > 0 //while there are still nodes to expand
-				&& (watch.Elapsed.TotalSeconds < runtime || EndTurnNodes.Count == 0) //and there is either more time or no End Turn Nodes found
+				&& watch.Elapsed.TotalSeconds < runtime //and there is more time
 				&& !FoundLethal) //and we haven't found a lethal node
 			{
-				//select an unexpanded node at random
-				int ind = rnd.Next(expansion_list.Count);
-				DeterministicNode current = expansion_list[ind];
-				expansion_list.RemoveAt(ind);
+				//select an unexpanded node
+				DeterministicNode current = expansion_list.Pop();
 
 				//find all the successor states of the current node, except for those that already exist in 
-				(Dictionary<GameRep, DeterministicNode>, List<ChanceNode>, Dictionary<GameRep, DeterministicNode>, DeterministicNode) new_nodes = current.FindChildren();
+				(Dictionary<GameRep, DeterministicNode>, List<ChanceNode>, DeterministicNode) new_nodes = current.FindChildren();
 
 				//for each newly discovered deterministic node that is a successor to the current node...
 				foreach (KeyValuePair<GameRep, DeterministicNode> n in new_nodes.Item1)
 				{
 					//add it to the deterministic nodes of this tree
-					DeterministicNodes.Add(n.Key, n.Value);
+					DeterministicNodes.Add(n.Key.Copy(), n.Value);
 
 					//if it isn't an endturn or loss node, add it to the stack
-					if(!n.Value.IsEndTurn && !n.Value.IsLoss && !n.Value.IsLethal)
+					if(!n.Value.IsLoss && !n.Value.IsLethal)
 					{
-						expansion_list.Add(n.Value);
+						expansion_list.Push(n.Value);
 					}
-				}
-
-				//for each newly discovered endturn node that is a successor to the current node...
-				foreach (KeyValuePair<GameRep, DeterministicNode> n in new_nodes.Item3)
-				{
-					//add it to the end turn list
-					EndTurnNodes.Add(n.Key, n.Value);
 				}
 
 				//add the chance nodes to the Chance Node list
@@ -307,9 +287,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				//if a node that gets you lethal is found,
 				//save it and stop searching
-				if(new_nodes.Item4 != null)
+				if(new_nodes.Item3 != null)
 				{
-					lethal_node = new_nodes.Item4;
+					lethal_node = new_nodes.Item3;
 					//break;
 				}
 			}
@@ -351,7 +331,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			//add a new subtree to one of the Chance nodes in the chosen tree
-			leaves[rnd.Next(leaves.Count)].AddSubtrees(runtime);
+			leaves[rnd.Next(leaves.Count)].AddSubtrees(runtime, current==this ? 3 : 1);
 
 			CheckRep();
 		}
@@ -389,9 +369,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				(float, Node) n = GetScore();
 				current = n.Item2;
 			}
-
+			
 			if(current == null)
 			{
+				taskTerminal = Root;
 				return;
 			}
 
@@ -407,7 +388,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			taskqueue = new Queue<Node>(l);
-			queueTerminal = l.Last();
+			taskTerminal = l.Count > 0 ? l.Last() : Root;
 		}
 
 		/// <summary>
@@ -431,7 +412,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			//if no end turn or chance node exist, return a score of 0 and null for the state
-			else if(ChanceNodes.Count == 0 && EndTurnNodes.Count == 0)
+			else if(ChanceNodes.Count == 0 && DeterministicNodes.Count == 0)
 			{
 				return (0, null);
 			}
@@ -439,8 +420,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//otherwise, return the end turn or chance node with the highest score
 			Node bestnode = null;
 			float bestscore = float.MinValue;
-			int loops = 0;
-			foreach (Node n in ChanceNodes.Cast<Node>().Concat(EndTurnNodes.Values.Cast<Node>()))
+			foreach (Node n in ChanceNodes.Cast<Node>().Concat(DeterministicNodes.Values.Cast<Node>()))
 			{
 				float s = n.Score();
 				if (s > bestscore)
@@ -448,11 +428,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					bestscore = s;
 					bestnode = n;
 				}
-
-				loops++;
 			}
-
-			Debug.Assert(loops == EndTurnNodes.Count + ChanceNodes.Count);
 
 			CheckRep();
 			return (bestscore, bestnode);
@@ -468,26 +444,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				Root = tree.Root.StateRep.Copy();
 
-				DetActions = (from rep in tree.EndTurnNodes.Keys select rep.Copy()).ToList();
+				DetActions = (from rep in tree.DeterministicNodes.Keys select rep.Copy()).ToList();
 
 				ChanceActions = (from n in tree.ChanceNodes select (from t in n.ChildrenTrees.Values select new SparseTree(t)).ToList()).ToList();
 			}
 
 			public float Score(Scorer scorer)
 			{
-				float best_score = float.MinValue;
-				foreach(GameRep rep in DetActions)
-				{
-					float score = scorer.FutureRewardEstimate(Root, rep);
-					if(score > best_score)
-					{
-						best_score = score;
-					}
-				}
-
 				float bestDetScore = (from rep in DetActions select scorer.FutureRewardEstimate(Root, rep)).Max();
-				List<float> ChanceScores = (from t in ChanceActions select t.Average(x => x.Score(scorer))).ToList();
-				float bestChanceScore = ChanceScores.Max();
+				float bestChanceScore = (from t in ChanceActions select t.Average(x => x.Score(scorer))).Max();
 				return Math.Max(bestDetScore, bestChanceScore);
 			}
 		}
@@ -539,19 +504,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 			}
 
-			
-			if(EndTurnNodes.Values.Any(p => !p.IsEndTurn))
-			{
-				Console.WriteLine("MaxTree: not all the end turn nodes are end turn");
-				result = false;
-			}
-
-			if (DeterministicNodes.Values.Any(p => p.IsEndTurn))
-			{
-				Console.WriteLine("MaxTree: a deterministic node is an end turn node");
-				result = false;
-			}
-
 
 			if (Root.Predecessor != null)
 			{
@@ -586,24 +538,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 			}
 
-			foreach (KeyValuePair<GameRep, DeterministicNode> p in EndTurnNodes)
-			{
-				DeterministicNode n = p.Value;
-				GameRep s = p.Key;
-
-				if (n.Tree != this)
-				{
-					Console.WriteLine("MaxTree: An endturn node's tree is not this");
-					result = false;
-				}
-
-				if (!n.StateRep.Equals(s))
-				{
-					Console.WriteLine("MaxTree: An endturn node's state rep is not it's key");
-					result = false;
-				}
-			}
-
 			if(taskqueue.Count>0)
 			{
 				List<Node> tasklist = new List<Node>(taskqueue);
@@ -623,12 +557,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 						if(n.GetType() == typeof(ChanceNode) && !ChanceNodes.Contains((ChanceNode)n))
 						{
 							Console.WriteLine("MaxTree: The last node in the queue is a chance node but isn't in the chance nodes list");
-							result = false;
-						}
-
-						if (n.GetType() == typeof(DeterministicNode) && !((DeterministicNode)n).IsLethal && !EndTurnNodes.ContainsValue((DeterministicNode)n))
-						{
-							Console.WriteLine("MaxTree: The last node in the queue a non-lethal endturn node and turn node but isn't in the endturn nodes list");
 							result = false;
 						}
 					}
