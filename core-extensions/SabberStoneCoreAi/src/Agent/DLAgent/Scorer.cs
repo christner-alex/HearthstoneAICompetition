@@ -20,7 +20,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private DLAgent agent;
 
-		public Scorer(DLAgent agent, float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
+		public Scorer(float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
 		{
 			diff_weights = np.array(
 				0.1f, //player_health
@@ -43,8 +43,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			WinScore = win_score;
 			LossScore = loss_score;
 			OpponentScoreModifier = opponent_modifier;
-
-			this.agent = agent;
 
 			CheckRep();
 		}

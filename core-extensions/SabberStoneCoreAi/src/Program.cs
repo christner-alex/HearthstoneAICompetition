@@ -37,13 +37,14 @@ namespace SabberStoneCoreAi
 			Console.WriteLine("Setup gameConfig");
 
 			List<Card> d;
+			d = null;
 			//d = new List<Card>() { Cards.FromId("EX1_277"), Cards.FromId("CS2_171"), Cards.FromId("CS2_106") };
-			d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
-			d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
-			d = Enumerable.Repeat(Cards.FromId("CS2_023"), 30).ToList(); //arcane intellect
-			d = Enumerable.Repeat(Cards.FromId("CS2_023"), 10).Concat(//arcane intellect
-				Enumerable.Repeat(Cards.FromId("EX1_008"), 10)).Concat(//argent squire
-				Enumerable.Repeat(Cards.FromId("CS2_029"), 10)).ToList();//fireball
+			//d = Enumerable.Repeat(Cards.FromId("EX1_277"), 30).ToList(); //arcane missles
+			//d = Enumerable.Repeat(Cards.FromId("CS2_171"), 30).ToList(); //stonetusk boar
+			//d = Enumerable.Repeat(Cards.FromId("CS2_023"), 30).ToList(); //arcane intellect
+			//d = Enumerable.Repeat(Cards.FromId("CS2_023"), 10).Concat(//arcane intellect
+			//	Enumerable.Repeat(Cards.FromId("EX1_008"), 10)).Concat(//argent squire
+			//	Enumerable.Repeat(Cards.FromId("CS2_029"), 10)).ToList();//fireball
 			//d = Enumerable.Repeat(Cards.FromId("BOT_101"), 30).ToList(); //astral rift
 
 			var gameConfig = new GameConfig()
@@ -53,25 +54,25 @@ namespace SabberStoneCoreAi
 				Player2HeroClass = CardClass.HUNTER,
 				FillDecks = true,
 				Shuffle = true,
-				Logging = false
+				Logging = false,
+				Player1Deck = d
 			};
 
 			Console.WriteLine("Setup POGameHandler");
-			DLAgent player1 = new DLAgent(0.0f);
+			DLAgent player1 = new DLAgent(new Scorer(), 0.0f);
+			//AbstractAgent player1 = new FaceHunter();
 			AbstractAgent player2 = new FaceHunter();
-			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
 
 			Console.WriteLine("Simulate Games");
-			//gameHandler.PlayGame();
-			gameHandler.PlayGame();
-			GameStats gameStats = gameHandler.getGameStats();
 
-			//finalize the records
-			List<GameRecord.TransitionRecord> records = player1.GetRecords().ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
+			Trainer trainer = new Trainer();
+			GameStats gameStats = trainer.PlayGame(player1, player2, gameConfig);
 
-			GameRecord.TransitionRecord r = records[0];
+			List<GameRecord.TransitionRecord> p1Records = player1.GetRecords().ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
 
 			gameStats.printResults();
+
+			Console.WriteLine(p1Records[0].reward);
 
 			Console.WriteLine("Test successful");
 			Console.ReadLine();
