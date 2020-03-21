@@ -204,7 +204,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				 while (!FoundLethal //break if there is a lethal node (no need to search furnther)
 					&& ChanceNodes.Count > 0 //or there are no chance nodes (nothing to search)
 					&& watch.Elapsed.TotalSeconds < remaining //or if we are out of time
-					//or there are far more expansions than there are trees (no no info being created)
+					//or there are far more expansions than there are trees (no new info being created)
 					&& chance_expansions < chance_subtrees.Count * Math.Log(chance_subtrees.Count+1) + ChanceNodes.Count
 					&& chance_subtrees.Count < 10 * ChanceNodes.Count //or there are far more subtrees than chance nodes
 					)

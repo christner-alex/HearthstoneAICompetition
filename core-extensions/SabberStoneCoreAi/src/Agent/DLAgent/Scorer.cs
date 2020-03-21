@@ -18,8 +18,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private readonly NDArray diff_weights;
 		private readonly NDArray end_weights;
 
-		private DLAgent agent;
-
 		public Scorer(float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
 		{
 			diff_weights = np.array(

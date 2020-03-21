@@ -15,4 +15,8 @@
     <Folder Include="Properties\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SciSharp.TensorFlow.Redist-Windows-GPU" Version="1.15.1" />
+  </ItemGroup>
+
 </Project>
