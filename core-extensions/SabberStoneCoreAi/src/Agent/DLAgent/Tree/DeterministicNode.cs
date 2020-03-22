@@ -33,7 +33,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public DeterministicNode(POGame.POGame s, DeterministicNode p, PlayerTask a, MaxTree t) : base(p,a,t)
 		{
 			State = s;
-			StateRep = new GameRep(s);
+			StateRep = new GameRep(s, Tree.Agent.Record);
 
 			deterministic_children = new Dictionary<GameRep, DeterministicNode>();
 			chance_children = new List<ChanceNode>();
@@ -87,7 +87,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				{
 					Dictionary<PlayerTask, POGame.POGame> result = State.Simulate(new List<PlayerTask> { option });
 					sucessors.Add(result[option]);
-					sim_reps.Add(new GameRep(result[option]));
+					sim_reps.Add(new GameRep(result[option], Tree.Agent.Record));
 
 					//if the new result is different from the last,
 					//treat it as random
@@ -164,7 +164,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			bool result = true;
 
-			if(!(new GameRep(State)).Equals(StateRep))
+			if(!(new GameRep(State,Tree.Agent.Record)).Equals(StateRep))
 			{
 				Console.WriteLine("A StateRep is not that of it's State");
 				result = false;

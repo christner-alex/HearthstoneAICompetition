@@ -68,7 +68,7 @@ namespace SabberStoneCoreAi
 			Trainer trainer = new Trainer();
 			GameStats gameStats = trainer.PlayGame(player1, player2, gameConfig);
 
-			List<GameRecord.TransitionRecord> p1Records = player1.GetRecords().ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
+			List<GameRecord.TransitionRecord> p1Records = player1.Record.ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
 
 			gameStats.printResults();
 

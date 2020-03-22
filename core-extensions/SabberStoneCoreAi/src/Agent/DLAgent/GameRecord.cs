@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
+using NumSharp;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -43,7 +44,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public bool PushState(POGame.POGame game)
 		{
-			return PushState(new GameRep(game));
+			return PushState(new GameRep(game, this));
 		}
 
 		public bool PushAction(GameRep action, SparseTree stree)
@@ -62,7 +63,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public bool PushAction(POGame.POGame game, MaxTree mtree)
 		{
-			return PushAction(new GameRep(game), mtree.CreateSparseTree());
+			return PushAction(new GameRep(game, this), mtree.CreateSparseTree());
 		}
 
 		public List<TransitionRecord> ConstructTransitions(Scorer scorer, bool won)
@@ -93,6 +94,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			return records;
+		}
+		
+		public List<NDArray> LastStates(int n)
+		{
+			return States.TakeLast(n).Select(x => x.BoardRep).ToList();
 		}
 	}
 }

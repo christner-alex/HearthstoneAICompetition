@@ -19,6 +19,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private readonly NDArray enemy_minion_rep;
 		private readonly NDArray hand_rep;
 		private readonly NDArray board_rep;
+		private readonly NDArray history_rep;
 
 		public const int minion_vec_len = 12;
 		public const int card_vec_len = 7;
@@ -28,6 +29,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public const int max_side_minions = 7;
 		public const int max_hand_cards = 10;
 		public const int max_num_boards = 2;
+		public const int max_num_history = 5;
 
 		/// <summary>
 		/// A wrapper for an NDArray which serves both as a key for the MaxTree state dictionaries
@@ -37,7 +39,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="use_current_player"> True if the player considered friendly is poGame.CurrentPlayer.
 		/// False if it should be poGame.CurrentOpponent. This should be false if the state this is representing
 		/// is the result of an END_TURN action by poGame.CurrentPlayer</param>
-		public GameRep(POGame.POGame poGame)
+		public GameRep(POGame.POGame poGame, GameRecord record)
 		{
 			Controller current_player = poGame.CurrentPlayer;
 
@@ -87,6 +89,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			enemy_minion_rep = np.stack(opponent_minion_vecs.ToArray());
 
+			history_rep = HistoryToVec(record);
+
 			CheckRep();
 		}
 
@@ -96,6 +100,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			enemy_minion_rep = rep.EnemyMinionRep;
 			board_rep = rep.BoardRep;
 			hand_rep = rep.HandRep;
+			history_rep = rep.HistoryRep;
 
 			CheckRep();
 		}
@@ -109,14 +114,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public NDArray EnemyMinionRep => enemy_minion_rep.copy();
 		public NDArray BoardRep => board_rep.copy();
 		public NDArray HandRep => hand_rep.copy();
-		public NDArray FlatRep => np.concatenate(new NDArray[] { board_rep.flat, hand_rep.flat, friendly_minion_rep.flat, enemy_minion_rep.flat });
+		public NDArray HistoryRep => history_rep.copy();
+		public NDArray FullHistoryRep => np.concatenate(new NDArray[] { history_rep, board_rep });
+		public NDArray FlatRep => np.concatenate(new NDArray[] { hand_rep.flat, friendly_minion_rep.flat, enemy_minion_rep.flat, board_rep.flat, history_rep.flat });
 
 		public bool Equals(GameRep other)
 		{
 			return hand_rep.Equals(other.hand_rep)
 				&& board_rep.Equals(other.board_rep)
 				&& friendly_minion_rep.Equals(other.friendly_minion_rep)
-				&& enemy_minion_rep.Equals(other.enemy_minion_rep);
+				&& enemy_minion_rep.Equals(other.enemy_minion_rep)
+				&& history_rep.Equals(other.history_rep);
 		}
 
 		public override int GetHashCode()
@@ -231,6 +239,38 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return result;
 		}
 
+		public static NDArray HistoryToVec(GameRecord rec)
+		{
+			List<NDArray> last_states = rec.LastStates(max_num_history);
+
+			while (last_states.Count < GameRep.max_num_history)
+			{
+				last_states.Insert(0, np.zeros(new Shape(max_num_boards, board_vec_len), NPTypeCode.Int32));
+			}
+
+			NDArray result = np.stack(last_states.ToArray());
+
+			Debug.Assert(result.shape == new Shape(GameRep.max_num_history, GameRep.max_num_boards, GameRep.board_vec_len), "Board History is wrong shape");
+
+			return result;
+		}
+
+		private NDArray ConstructMinionPairs(GameRep rep)
+		{
+			NDArray friendly_minions = rep.FriendlyMinionRep;
+			NDArray[] boards = new NDArray[GameRep.max_side_minions];
+
+			for (int r = 0; r < GameRep.max_side_minions; r++)
+			{
+				NDArray enemy_board = rep.EnemyMinionRep.roll(r, 0);
+				boards[r] = np.concatenate(new NDArray[] { friendly_minions, enemy_board }, 1);
+			}
+
+			NDArray result = np.concatenate(boards, 0);
+
+			return result;
+		}
+
 		private bool CheckRep()
 		{
 			if(!Parameters.doCheckRep)
@@ -259,6 +299,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			if (!enemy_minion_rep.Shape.Equals(new Shape(max_side_minions, minion_vec_len)))
+			{
+				Console.WriteLine("Enemy Minions is the wrong dimension");
+				result = false;
+			}
+
+			if (!history_rep.Shape.Equals(new Shape(max_num_history, max_num_boards, board_vec_len)))
 			{
 				Console.WriteLine("Enemy Minions is the wrong dimension");
 				result = false;

@@ -90,6 +90,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="tree_prob"> A probability. The higher tree_prob, the greater the chance a lower subtree will be expanded each expansion</param>
 		public MaxTree(POGame.POGame root_game, PlayerTask root_action=null, MaxTree parent_tree=null, DLAgent agent=null, int det = 3, float tree_prob = 0.5f)
 		{
+			Agent = parent_tree != null ? parent_tree.Agent : agent;
+
 			Root = new DeterministicNode(root_game, null, root_action, this);
 
 			DeterministicNodes = new Dictionary<GameRep, DeterministicNode>();
@@ -110,8 +112,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			rnd = new Random();
 
 			lethal_node = null;
-
-			Agent = parent_tree != null ? parent_tree.Agent : agent;
 			
 			//put this tree in the subtree of any predecessor trees
 			ParentTree = parent_tree;
@@ -144,7 +144,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			CheckRep();
 
 			PlayerTask result = null;
-			GameRep input_rep = new GameRep(poGame);
+			GameRep input_rep = new GameRep(poGame,Agent.Record);
 
 			//if the poGame state is the same as the terminal node's...
 			if(taskTerminal != null && taskqueue.Count == 0

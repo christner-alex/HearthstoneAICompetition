@@ -6,41 +6,66 @@ using System.Diagnostics;
 using Tensorflow;
 using static Tensorflow.Binding;
 
-namespace SabberStoneCoreAi.Agent.DLAgent.NeuralNetworks
+namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class GameEvalNN
 	{
-		public int history_len;
+		public const int rnn_units = 5;
 
-		private Tensor hand_input, minions_input, board_input;
+		protected Tensor hand_input, minions_input, board_hist_input, target;
 
-		private int minions_input_row, minions_input_col;
+		public readonly int minions_input_row, minions_input_col, full_history_length;
 
-		private int num_hand_filters = 3;
-		private int num_minions_filters = 3;
-		private int rnn_nodes;
+		public const int num_hand_filters = 3;
+		public const int num_minions_filters = 3;
+
+		protected Tensor online_pred, target_pred;
+
+		protected List<RefVariable> online_vars, target_vars;
+
+		private Tensor loss;
+		private Optimizer optim;
+		private Operation train_op;
+
+		private Session sess;
 
 		public GameEvalNN()
 		{
 			minions_input_row = GameRep.max_side_minions * GameRep.max_side_minions;
 			minions_input_col = GameRep.minion_vec_len * 2;
-
-			rnn_nodes = GameRep.max_num_boards * GameRep.board_vec_len;
+			full_history_length = GameRep.max_num_history + 1;
 
 			//inputs for the various parts of the GameRep
 			hand_input = tf.placeholder(TF_DataType.TF_INT32, new TensorShape(-1, GameRep.max_hand_cards, GameRep.card_vec_len), name: "hand_input");
 			minions_input = tf.placeholder(TF_DataType.TF_INT32, new TensorShape(-1, minions_input_row, minions_input_col), name: "minions_input");
-			board_input = tf.placeholder(TF_DataType.TF_INT32, new TensorShape(-1, history_len, GameRep.max_num_boards, GameRep.board_vec_len), name: "boards_input");
+			board_hist_input = tf.placeholder(TF_DataType.TF_INT32, new TensorShape(-1, full_history_length, GameRep.max_num_boards, GameRep.board_vec_len), name: "board_hist_input");
+
+			target = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1), name: "target_input");
+
+			//create identical graphs for the online network and the target network
+			online_pred = CreateSubgraph("online");
+			target_pred = CreateSubgraph("target");
+
+			//get the trainable variables of each subgraph
+			online_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES, "online");
+			target_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES, "target");
+
+			optim = tf.train.AdamOptimizer(0.01f);
+			loss = tf.reduce_mean(tf.pow(target - target, 2.0f) / 2.0f);
+			train_op = optim.minimize(loss, var_list: online_vars);
+
+			sess = null;
 		}
 
-		private void CreateSubgraph(string name)
+		private Tensor CreateSubgraph(string name)
 		{
+			Tensor pred = null;
 
 			tf_with(tf.variable_scope(name), delegate
 			{
 				var hand_reshaped = tf.reshape(hand_input, new int[] { -1, GameRep.max_hand_cards, GameRep.card_vec_len, 1 });
 				var minions_reshaped = tf.reshape(minions_input, new int[] { -1, minions_input_row, minions_input_col, 1 });
-				var boards_reshaped = tf.reshape(board_input, new int[] { -1, history_len, rnn_nodes });
+				var boards_reshaped = tf.reshape(board_hist_input, new int[] { -1, full_history_length, GameRep.max_num_boards * GameRep.board_vec_len });
 
 				//a 1d convolution which passes over each card in the hand
 				//returns [-1, max_hand_cards, 1, 3]
@@ -62,7 +87,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent.NeuralNetworks
 
 				//RNN over board history
 				//returns [-1, GameRep.max_num_boards * GameRep.board_vec_len]
-				var rnnCell = tf.nn.rnn_cell.BasicRNNCell(rnn_nodes);
+				var rnnCell = tf.nn.rnn_cell.BasicRNNCell(rnn_units);
 				var (_,rnn_final) = tf.nn.dynamic_rnn(
 					cell: rnnCell,
 					inputs: boards_reshaped
@@ -70,43 +95,28 @@ namespace SabberStoneCoreAi.Agent.DLAgent.NeuralNetworks
 
 				var hand_flat = tf.reshape(hand_conv, new int[] { -1, GameRep.max_hand_cards * num_hand_filters });
 				var minions_flat = tf.reshape(minions_conv, new int[] { -1, minions_input_row * num_hand_filters });
-				var boards_flat = tf.reshape(rnn_final, new int[] { -1, rnn_nodes });
+				var boards_flat = tf.reshape(rnn_final, new int[] { -1, rnn_units });
 				var combined = tf.concat(new List<Tensor>() { hand_flat, minions_flat, boards_flat }, 1);
 
 				var dense1 = tf.layers.dense(
 					inputs: combined,
-					units: 10
+					units: 10,
+					name: "last_layer"
 					);
 
-				var output = tf.layers.dense(
+				pred = tf.layers.dense(
 					inputs: dense1,
-					units: 1
+					units: 1,
+					name: "prediction"
 					);
 			});
+
+			return pred;
 		}
 
 		public float ScoreStates(params GameRep[] reps)
 		{
 			return 0;
-		}
-
-		private NDArray ConstructMinionPairs(GameRep rep)
-		{
-			NDArray friendly_minions = rep.FriendlyMinionRep;
-			NDArray[] boards = new NDArray[GameRep.max_side_minions];
-
-			for(int r=0; r<GameRep.max_side_minions; r++)
-			{
-				NDArray enemy_board = rep.EnemyMinionRep.roll(r, 0);
-				boards[r] = np.concatenate(new NDArray[] { friendly_minions, enemy_board }, 1);
-			}
-
-			return np.concatenate(boards, 0);
-		}
-
-		private NDArray ContructBoardHistory(GameRep rep)
-		{
-			return np.zeros(1);
 		}
 
 		public void TrainStep()
@@ -122,6 +132,32 @@ namespace SabberStoneCoreAi.Agent.DLAgent.NeuralNetworks
 		public void LoadModel()
 		{
 
+		}
+
+		public bool StartSession()
+		{
+			if (sess == null)
+			{
+				sess = tf.Session();
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		public bool EndSession()
+		{
+			if (sess != null)
+			{
+				sess.close();
+				return true;
+			}
+			else
+			{
+				return false;
+			}
 		}
 	}
 }

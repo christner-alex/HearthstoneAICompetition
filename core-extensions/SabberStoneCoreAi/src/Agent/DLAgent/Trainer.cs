@@ -22,6 +22,21 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			classes = Enum.GetValues(typeof(CardClass));
 		}
 
+		public void RunTrainingLoop()
+		{
+			GameEvalNN network = new GameEvalNN();
+			Scorer scorer = new Scorer();
+			DLAgent agent1 = new DLAgent(scorer);
+			DLAgent agent2 = new DLAgent(scorer);
+
+			//loop
+			//play training games
+
+			//run update
+
+			//test on other agents
+		}
+
 		public GameStats PlayGame(AbstractAgent player1, AbstractAgent player2, GameConfig gameConfig)
 		{
 			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
@@ -44,8 +59,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			GameStats gameStats = PlayGame(player1, player2, gameConfig);
 
-			List<GameRecord.TransitionRecord> p1Records = player1.GetRecords().ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
-			List<GameRecord.TransitionRecord> p2Records = player2.GetRecords().ConstructTransitions(player2.scorer, gameStats.PlayerB_Wins > 0);
+			List<GameRecord.TransitionRecord> p1Records = player1.Record.ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
+			List<GameRecord.TransitionRecord> p2Records = player2.Record.ConstructTransitions(player2.scorer, gameStats.PlayerB_Wins > 0);
 
 			return (p1Records, p2Records);
 		}
@@ -55,6 +70,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			GameStats gameStats = PlayGame(dlAgent, otherAgent, gameConfig);
 
 			return gameStats;
+		}
+
+		public float[] CreateTargets(params GameRecord.TransitionRecord[] transitions)
+		{
+			GameRecord.TransitionRecord t = transitions[0];
+			//t.successor_actions.Score
+
+			return null;
 		}
 	}
 }

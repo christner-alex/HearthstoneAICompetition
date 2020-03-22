@@ -25,7 +25,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private Random rnd;
 
-		private GameRecord Record;
+		public GameRecord Record { get; private set; }
 
 		public float Epsilon { get; set; }
 		private bool do_random;
@@ -59,7 +59,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				//keep track of the state the turn starts on
 				StartTurnState = poGame;
-				StartTurnRep = new GameRep(poGame);
+				StartTurnRep = new GameRep(poGame, Record);
 
 				Record.PushState(StartTurnRep.Copy());
 
@@ -143,11 +143,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Epsilon = Math.Clamp(eps, 0f, 1f);
 
 			this.scorer = scorer;
-		}
-
-		public GameRecord GetRecords()
-		{
-			return Record;
 		}
 
 		private bool CheckRep()
