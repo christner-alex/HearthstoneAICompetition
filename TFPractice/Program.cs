@@ -13,6 +13,9 @@ namespace TFPractice
     {
 		static void Main(string[] args)
         {
+			NDArray a = np.array(12f);
+			float b = a.GetValue<float>(0);
+
 			Tensor x = tf.placeholder(TF_DataType.TF_INT32, new Shape(1));
 			(Tensor, List<RefVariable>) n1 = PartialConstructor.CreatePartial(x, "one");
 			(Tensor, List<RefVariable>) n2 = PartialConstructor.CreatePartial(x, "two");

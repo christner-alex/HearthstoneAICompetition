@@ -47,34 +47,9 @@ namespace SabberStoneCoreAi
 			//	Enumerable.Repeat(Cards.FromId("CS2_029"), 10)).ToList();//fireball
 			//d = Enumerable.Repeat(Cards.FromId("BOT_101"), 30).ToList(); //astral rift
 
-			var gameConfig = new GameConfig()
-			{
-				StartPlayer = 1,
-				Player1HeroClass = CardClass.MAGE,
-				Player2HeroClass = CardClass.HUNTER,
-				FillDecks = true,
-				Shuffle = true,
-				Logging = false,
-				Player1Deck = d
-			};
-
-			Console.WriteLine("Setup POGameHandler");
-			DLAgent player1 = new DLAgent(new Scorer(), 0.0f);
-			//AbstractAgent player1 = new FaceHunter();
-			AbstractAgent player2 = new FaceHunter();
-
-			Console.WriteLine("Simulate Games");
-
 			Trainer trainer = new Trainer();
-			GameStats gameStats = trainer.PlayGame(player1, player2, gameConfig);
+			trainer.RunTrainingLoop();
 
-			List<GameRecord.TransitionRecord> p1Records = player1.Record.ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
-
-			gameStats.printResults();
-
-			Console.WriteLine(p1Records[0].reward);
-
-			Console.WriteLine("Test successful");
 			Console.ReadLine();
 		}
 	}

@@ -1,4 +1,5 @@
 NEXT:
 - add more information that represents action to the board component of the state rep
-- start implementing Trainer, which plays training games, updates netural network, and plays testing games
-- start implementing Neural Network
+- change scorer functions to take lists of states rather than just one at a time
+- implement copy op and train algorithm
+- find a good way to store data (database)

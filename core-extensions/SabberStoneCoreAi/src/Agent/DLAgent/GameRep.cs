@@ -115,7 +115,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public NDArray BoardRep => board_rep.copy();
 		public NDArray HandRep => hand_rep.copy();
 		public NDArray HistoryRep => history_rep.copy();
-		public NDArray FullHistoryRep => np.concatenate(new NDArray[] { history_rep, board_rep });
+		public NDArray FullHistoryRep => np.concatenate(new NDArray[] { history_rep, np.expand_dims(board_rep, 0) }, axis:0);
 		public NDArray FlatRep => np.concatenate(new NDArray[] { hand_rep.flat, friendly_minion_rep.flat, enemy_minion_rep.flat, board_rep.flat, history_rep.flat });
 
 		public bool Equals(GameRep other)
@@ -241,7 +241,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public static NDArray HistoryToVec(GameRecord rec)
 		{
-			List<NDArray> last_states = rec.LastStates(max_num_history);
+			List<NDArray> last_states = (from h in rec.LastStates(max_num_history) select h.copy()).ToList();
 
 			while (last_states.Count < GameRep.max_num_history)
 			{
@@ -250,20 +250,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			NDArray result = np.stack(last_states.ToArray());
 
-			Debug.Assert(result.shape == new Shape(GameRep.max_num_history, GameRep.max_num_boards, GameRep.board_vec_len), "Board History is wrong shape");
-
 			return result;
 		}
 
-		private NDArray ConstructMinionPairs(GameRep rep)
+		public NDArray ConstructMinionPairs()
 		{
-			NDArray friendly_minions = rep.FriendlyMinionRep;
 			NDArray[] boards = new NDArray[GameRep.max_side_minions];
 
 			for (int r = 0; r < GameRep.max_side_minions; r++)
 			{
-				NDArray enemy_board = rep.EnemyMinionRep.roll(r, 0);
-				boards[r] = np.concatenate(new NDArray[] { friendly_minions, enemy_board }, 1);
+				NDArray enemy_board = EnemyMinionRep.roll(r, 0);
+				boards[r] = np.concatenate(new NDArray[] { friendly_minion_rep, enemy_board }, 1);
 			}
 
 			NDArray result = np.concatenate(boards, 0);
@@ -306,7 +303,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			if (!history_rep.Shape.Equals(new Shape(max_num_history, max_num_boards, board_vec_len)))
 			{
-				Console.WriteLine("Enemy Minions is the wrong dimension");
+				Console.WriteLine("Board History is wrong shape");
 				result = false;
 			}
 

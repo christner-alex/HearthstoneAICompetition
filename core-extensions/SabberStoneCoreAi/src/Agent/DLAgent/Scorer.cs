@@ -18,7 +18,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private readonly NDArray diff_weights;
 		private readonly NDArray end_weights;
 
-		public Scorer(float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
+		public GameEvalNN Network { get; }
+
+		public Scorer(GameEvalNN network = null, float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
 		{
 			diff_weights = np.array(
 				0.1f, //player_health
@@ -41,6 +43,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			WinScore = win_score;
 			LossScore = loss_score;
 			OpponentScoreModifier = opponent_modifier;
+
+			Network = network;
 
 			CheckRep();
 		}
@@ -79,7 +83,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public float FutureRewardEstimate(GameRep start_state, GameRep end_state)
 		{
 			//TODO implement neural network
-			return 0;
+			if (Network == null) return 0f;
+			return Network.ScoreStates(end_state).GetValue<float>(0);
 		}
 
 		/// <summary>
@@ -88,9 +93,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="start_state">The GameRep representing the start of the turn meant to be scores</param>
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
-		public float Q(GameRep start_state, GameRep end_state)
+		public NDArray Q(GameRep start_state, GameRep end_state)
 		{
-			return TurnReward(start_state, end_state) + FutureRewardEstimate(start_state, end_state);
+			return TurnReward(start_state, end_state)
+				+ FutureRewardEstimate(start_state, end_state);
 		}
 
 		/// <summary>
@@ -104,6 +110,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public float ScoreTransition(GameRep p1_start, GameRep p1_end, GameRep p2_end)
 		{
 			return TurnReward(p1_start, p1_end) - OpponentScoreModifier * TurnReward(p1_end, p2_end);
+		}
+
+		public NDArray CreateTargets(params GameRecord.TransitionRecord[] transitions)
+		{
+			GameRecord.TransitionRecord t = transitions[0];
+			t.successor_actions.Score(this);
+
+			return null;
 		}
 
 		private bool CheckRep()

@@ -5,6 +5,7 @@ using NumSharp;
 using System.Diagnostics;
 using Tensorflow;
 using static Tensorflow.Binding;
+using System.Linq;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -28,6 +29,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private Operation train_op;
 
 		private Session sess;
+		private Operation init;
 
 		public GameEvalNN()
 		{
@@ -36,9 +38,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			full_history_length = GameRep.max_num_history + 1;
 
 			//inputs for the various parts of the GameRep
-			hand_input = tf.placeholder(TF_DataType.TF_INT32, new TensorShape(-1, GameRep.max_hand_cards, GameRep.card_vec_len), name: "hand_input");
-			minions_input = tf.placeholder(TF_DataType.TF_INT32, new TensorShape(-1, minions_input_row, minions_input_col), name: "minions_input");
-			board_hist_input = tf.placeholder(TF_DataType.TF_INT32, new TensorShape(-1, full_history_length, GameRep.max_num_boards, GameRep.board_vec_len), name: "board_hist_input");
+			hand_input = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1, GameRep.max_hand_cards, GameRep.card_vec_len), name: "hand_input");
+			minions_input = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1, minions_input_row, minions_input_col), name: "minions_input");
+			board_hist_input = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1, full_history_length, GameRep.max_num_boards, GameRep.board_vec_len), name: "board_hist_input");
 
 			target = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1), name: "target_input");
 
@@ -51,10 +53,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			target_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES, "target");
 
 			optim = tf.train.AdamOptimizer(0.01f);
-			loss = tf.reduce_mean(tf.pow(target - target, 2.0f) / 2.0f);
+			loss = tf.reduce_mean(tf.pow(target - online_pred, 2.0f) / 2.0f); //mean squared error
 			train_op = optim.minimize(loss, var_list: online_vars);
 
 			sess = null;
+			init = tf.global_variables_initializer();
 		}
 
 		private Tensor CreateSubgraph(string name)
@@ -73,7 +76,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					inputs: hand_reshaped,
 					filters: num_hand_filters,
 					kernel_size: new int[] { 1, GameRep.card_vec_len },
-					strides: new int[] { 0, 1 }
+					strides: new int[] { 1, 1 }
 					);
 
 				//1d convolution over the pairs of minions
@@ -82,20 +85,22 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					inputs: minions_reshaped,
 					filters: num_minions_filters,
 					kernel_size: new int[] { 1, minions_input_col },
-					strides: new int[] { 0, 1 }
+					strides: new int[] { 1, 1 }
 					);
 
 				//RNN over board history
 				//returns [-1, GameRep.max_num_boards * GameRep.board_vec_len]
-				var rnnCell = tf.nn.rnn_cell.BasicRNNCell(rnn_units);
-				var (_,rnn_final) = tf.nn.dynamic_rnn(
+				//var rnnCell = tf.nn.rnn_cell.BasicRNNCell(rnn_units);
+				var rnnCell = new BasicRnnCell(rnn_units, dtype: TF_DataType.TF_FLOAT);
+				var rnn_result = tf.nn.dynamic_rnn(
 					cell: rnnCell,
-					inputs: boards_reshaped
+					inputs: boards_reshaped,
+					dtype: TF_DataType.TF_FLOAT
 					);
 
 				var hand_flat = tf.reshape(hand_conv, new int[] { -1, GameRep.max_hand_cards * num_hand_filters });
 				var minions_flat = tf.reshape(minions_conv, new int[] { -1, minions_input_row * num_hand_filters });
-				var boards_flat = tf.reshape(rnn_final, new int[] { -1, rnn_units });
+				var boards_flat = tf.reshape(rnn_result.Item2, new int[] { -1, rnn_units });
 				var combined = tf.concat(new List<Tensor>() { hand_flat, minions_flat, boards_flat }, 1);
 
 				var dense1 = tf.layers.dense(
@@ -114,12 +119,20 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return pred;
 		}
 
-		public float ScoreStates(params GameRep[] reps)
+		public NDArray ScoreStates(params GameRep[] reps)
 		{
-			return 0;
+			NDArray hand_in = np.stack((from r in reps select r.HandRep).ToArray());
+			NDArray minions_in = np.stack((from r in reps select r.ConstructMinionPairs()).ToArray());
+			NDArray history_in = np.stack((from r in reps select r.FullHistoryRep).ToArray());
+			return sess.run(online_pred, new FeedItem(hand_input, hand_in), new FeedItem(minions_input, minions_in), new FeedItem(board_hist_input, history_in));
 		}
 
 		public void TrainStep()
+		{
+
+		}
+
+		public void CopyOnlineToTarget()
 		{
 
 		}
@@ -158,6 +171,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				return false;
 			}
+		}
+
+		public void Initialize()
+		{
+			sess.run(init);
 		}
 	}
 }
