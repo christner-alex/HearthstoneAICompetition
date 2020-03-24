@@ -451,8 +451,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			public float Score(Scorer scorer)
 			{
-				float bestDetScore = (from rep in DetActions select scorer.FutureRewardEstimate(Root, rep)).Max();
-				float bestChanceScore = (from t in ChanceActions select t.Average(x => x.Score(scorer))).Max();
+				float bestDetScore = DetActions.Count > 0 ? scorer.Q(Root, DetActions.ToArray()).max().GetValue<float>(0) : float.MinValue;
+
+				var chanceScores = (from t in ChanceActions where t.Count>0 select t.Average(x => x.Score(scorer))).ToList();
+				float bestChanceScore = chanceScores.Count == 0 ? float.MinValue : chanceScores.Max();
 				return Math.Max(bestDetScore, bestChanceScore);
 			}
 		}

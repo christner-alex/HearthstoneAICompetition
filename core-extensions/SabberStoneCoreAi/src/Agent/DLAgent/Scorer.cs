@@ -67,7 +67,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			NDArray friendly_difference = friendly_end_board - friendly_start_board;
 			NDArray enemy_difference = enemy_end_board - enemy_start_board;
 
-			float modify = modify_enemy_score ? 1f : OpponentScoreModifier;
+			float modify = modify_enemy_score ? OpponentScoreModifier : 1f;
 			NDArray result = friendly_difference.dot(diff_weights)
 				- modify * enemy_difference.dot(diff_weights)
 				+ friendly_end_board.dot(end_weights)
@@ -75,16 +75,28 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return result.astype(NPTypeCode.Float).ToArray<float>()[0];
 		}
 
+		public NDArray TurnReward(GameRep[] start_states, GameRep[] end_states, bool modify_enemy_score = false)
+		{
+			var l = from int i in Enumerable.Range(0, start_states.Length)
+					select TurnReward(start_states[i], end_states[i], modify_enemy_score);
+			return np.array(l.ToArray());
+		}
+
 		/// <summary>
 		/// Calculate the estimated reward gained after ending a turn with the end_state from the start_state
 		/// </summary>
-		/// <param name="start_state">The GameRep representing the start of the turn meant to be scores</param>
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
-		public float FutureRewardEstimate(GameRep start_state, GameRep end_state)
+		public float FutureRewardEstimate(GameRep end_state)
 		{
 			//TODO implement neural network
 			if (Network == null) return 0f;
 			return Network.ScoreStates(end_state).GetValue<float>(0);
+		}
+
+		public NDArray FutureRewardEstimate(GameRep[] end_states)
+		{
+			if (Network == null) return np.zeros(end_states.Length);
+			return Network.ScoreStates(end_states);
 		}
 
 		/// <summary>
@@ -93,10 +105,23 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="start_state">The GameRep representing the start of the turn meant to be scores</param>
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
-		public NDArray Q(GameRep start_state, GameRep end_state)
+		public float Q(GameRep start_state, GameRep end_state)
 		{
 			return TurnReward(start_state, end_state)
-				+ FutureRewardEstimate(start_state, end_state);
+				+ FutureRewardEstimate(end_state);
+		}
+
+		public NDArray Q(GameRep[] start_states, GameRep[] end_states)
+		{
+			NDArray turn = TurnReward(start_states, start_states);
+			NDArray future = FutureRewardEstimate(end_states);
+			return turn + future;
+		}
+
+		public NDArray Q(GameRep start_state, GameRep[] end_states)
+		{
+			var start_states = Enumerable.Repeat(start_state, end_states.Length).ToArray();
+			return Q(start_states, end_states);
 		}
 
 		/// <summary>
@@ -107,17 +132,16 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="p1_start">The GameRep representing the start of the turn meant to be scores</param>
 		/// <param name="p1_end">The GameRep representing the result of taking the end turn action from p1_start</param>
 		/// <param name="p1_end">The GameRep representing the start of the players turn after opponent ended their turn from p1_end</param>
-		public float ScoreTransition(GameRep p1_start, GameRep p1_end, GameRep p2_end)
+		public float ScoreTransition(GameRep p1_start, GameRep p1_end, GameRep p2_end, bool modify_opponent_score = false)
 		{
-			return TurnReward(p1_start, p1_end) - OpponentScoreModifier * TurnReward(p1_end, p2_end);
+			return TurnReward(p1_start, p1_end) - TurnReward(p1_end, p2_end, modify_opponent_score);
 		}
 
 		public NDArray CreateTargets(params GameRecord.TransitionRecord[] transitions)
 		{
-			GameRecord.TransitionRecord t = transitions[0];
-			t.successor_actions.Score(this);
-
-			return null;
+			//target = r + lambda * max_a' Q(s', a')
+			var l = from t in transitions select t.reward + (t.successor_actions?.Score(this) ?? 0);
+			return np.array(l.ToArray());
 		}
 
 		private bool CheckRep()

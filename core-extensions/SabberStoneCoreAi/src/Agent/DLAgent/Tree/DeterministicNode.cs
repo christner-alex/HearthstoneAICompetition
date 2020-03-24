@@ -86,6 +86,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				for (int s = 0; s < Tree.deterministic_simulation_check; s++)
 				{
 					Dictionary<PlayerTask, POGame.POGame> result = State.Simulate(new List<PlayerTask> { option });
+
+					if (result[option] == null) continue;
+
 					sucessors.Add(result[option]);
 					sim_reps.Add(new GameRep(result[option], Tree.Agent.Record));
 
@@ -97,6 +100,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 						break;
 					}
 				}
+
+				if (sucessors.Count == 0 || sim_reps.Count == 0) break;
 
 				POGame.POGame st = sucessors.Last();
 				GameRep k = sim_reps.Last();

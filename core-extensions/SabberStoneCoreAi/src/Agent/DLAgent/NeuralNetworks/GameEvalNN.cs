@@ -21,6 +21,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public const int num_minions_filters = 3;
 
 		protected Tensor online_pred, target_pred;
+		protected Tensor online_argmax, target_argmax;
 
 		protected List<RefVariable> online_vars, target_vars;
 
@@ -30,6 +31,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private Session sess;
 		private Operation init;
+
+		private Saver saver;
 
 		public GameEvalNN()
 		{
@@ -45,8 +48,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			target = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1), name: "target_input");
 
 			//create identical graphs for the online network and the target network
-			online_pred = CreateSubgraph("online");
-			target_pred = CreateSubgraph("target");
+			(online_pred, online_argmax) = CreateSubgraph("online");
+			(target_pred, target_argmax) = CreateSubgraph("target");
 
 			//get the trainable variables of each subgraph
 			online_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES, "online");
@@ -58,11 +61,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			sess = null;
 			init = tf.global_variables_initializer();
+
+			saver = tf.train.Saver();
 		}
 
-		private Tensor CreateSubgraph(string name)
+		private (Tensor,Tensor) CreateSubgraph(string name)
 		{
 			Tensor pred = null;
+			Tensor am = null;
 
 			tf_with(tf.variable_scope(name), delegate
 			{
@@ -114,22 +120,31 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					units: 1,
 					name: "prediction"
 					);
+
+				am = tf.argmax(pred, name: "argmax");
 			});
 
-			return pred;
+			return (pred,am);
 		}
 
-		public NDArray ScoreStates(params GameRep[] reps)
+		private (NDArray HandIn, NDArray MinionIn, NDArray HistoryIn) UnwrapReps(params GameRep[] reps)
 		{
 			NDArray hand_in = np.stack((from r in reps select r.HandRep).ToArray());
 			NDArray minions_in = np.stack((from r in reps select r.ConstructMinionPairs()).ToArray());
 			NDArray history_in = np.stack((from r in reps select r.FullHistoryRep).ToArray());
-			return sess.run(online_pred, new FeedItem(hand_input, hand_in), new FeedItem(minions_input, minions_in), new FeedItem(board_hist_input, history_in));
+			return (hand_in, minions_in, history_in);
 		}
 
-		public void TrainStep()
+		public NDArray ScoreStates(params GameRep[] reps)
 		{
+			var input = UnwrapReps(reps);
+			return sess.run(online_pred, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn));
+		}
 
+		public void TrainStep(GameRep[] training_points, NDArray targets)
+		{
+			var input = UnwrapReps(training_points);
+			sess.run(train_op, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn), new FeedItem(target, targets));
 		}
 
 		public void CopyOnlineToTarget()
@@ -139,7 +154,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public void SaveModel()
 		{
-
+			saver.save(sess, "models/testmodel.ckpt");
 		}
 
 		public void LoadModel()

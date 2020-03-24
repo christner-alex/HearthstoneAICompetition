@@ -1,4 +1,5 @@
-﻿using SabberStoneCore.Config;
+﻿using NumSharp;
+using SabberStoneCore.Config;
 using SabberStoneCore.Enums;
 using SabberStoneCore.Model;
 using SabberStoneCoreAi.Agent.ExampleAgents;
@@ -6,6 +7,7 @@ using SabberStoneCoreAi.POGame;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -34,9 +36,29 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//loop
 			//play training games
-			TrainingGame(agent1, agent2);
+			try
+			{
+				(List<GameRecord.TransitionRecord>, List<GameRecord.TransitionRecord>) records = TrainingGame(agent1, agent2);
 
-			//run update
+				//run update
+				List<GameRecord.TransitionRecord> p1Records = records.Item1;
+				List<GameRecord.TransitionRecord> p2Records = records.Item2;
+
+				NDArray p1Targets = scorer.CreateTargets(p1Records.ToArray());
+				NDArray p2Targets = scorer.CreateTargets(p2Records.ToArray());
+
+				GameRep[] p1Acts = (from r in p1Records select r.action).ToArray();
+				GameRep[] p2Acts = (from r in p2Records select r.action).ToArray();
+
+				network.TrainStep(p1Acts, p1Targets);
+				network.TrainStep(p2Acts, p2Targets);
+
+				network.SaveModel();
+			}
+			catch(Exception ex)
+			{
+				Console.WriteLine(ex);
+			}
 
 			//test on other agents
 
