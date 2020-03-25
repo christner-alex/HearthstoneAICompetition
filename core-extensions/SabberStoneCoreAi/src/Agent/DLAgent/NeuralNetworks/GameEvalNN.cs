@@ -6,32 +6,42 @@ using System.Diagnostics;
 using Tensorflow;
 using static Tensorflow.Binding;
 using System.Linq;
+using System.Threading;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class GameEvalNN
 	{
-		public const int rnn_units = 5;
+		Mutex mutex;
 
+		//inputs to the network
 		protected Tensor hand_input, minions_input, board_hist_input, target;
 
+		//calculated hyperparameters about the network input based on the GameRep object
 		public readonly int minions_input_row, minions_input_col, full_history_length;
 
+		//constant hyperparameters about the network
 		public const int num_hand_filters = 3;
 		public const int num_minions_filters = 3;
+		public const int rnn_units = 5;
 
+		//prediction tensors
 		protected Tensor online_pred, target_pred;
-		protected Tensor online_argmax, target_argmax;
 
-		protected List<RefVariable> online_vars, target_vars;
+		//trainable variables belonging to each subgraph
+		protected Dictionary<string, RefVariable> online_vars, target_vars;
 
+		//operation for copying online variables to the correspoding target variables
+		private Operation copy_ops;
+
+		//bits for training the network
 		private Tensor loss;
 		private Optimizer optim;
 		private Operation train_op;
 
+		//bits for running the network
 		private Session sess;
 		private Operation init;
-
 		private Saver saver;
 
 		public GameEvalNN()
@@ -48,27 +58,28 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			target = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1), name: "target_input");
 
 			//create identical graphs for the online network and the target network
-			(online_pred, online_argmax) = CreateSubgraph("online");
-			(target_pred, target_argmax) = CreateSubgraph("target");
+			(online_pred, online_vars) = CreateSubgraph("online");
+			(target_pred, target_vars) = CreateSubgraph("target");
 
-			//get the trainable variables of each subgraph
-			online_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES, "online");
-			target_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES, "target");
+			var cops = from v in target_vars select v.Value.assign(online_vars[v.Key]);
+			copy_ops = tf.group(cops.ToArray());
 
 			optim = tf.train.AdamOptimizer(0.01f);
 			loss = tf.reduce_mean(tf.pow(target - online_pred, 2.0f) / 2.0f); //mean squared error
-			train_op = optim.minimize(loss, var_list: online_vars);
+			train_op = optim.minimize(loss, var_list: online_vars.Values.ToList());
 
 			sess = null;
 			init = tf.global_variables_initializer();
 
 			saver = tf.train.Saver();
+
+			mutex = new Mutex();
 		}
 
-		private (Tensor,Tensor) CreateSubgraph(string name)
+		private (Tensor PredOp, Dictionary<string, RefVariable> Trainables) CreateSubgraph(string name)
 		{
 			Tensor pred = null;
-			Tensor am = null;
+			//Tensor am = null;
 
 			tf_with(tf.variable_scope(name), delegate
 			{
@@ -121,10 +132,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					name: "prediction"
 					);
 
-				am = tf.argmax(pred, name: "argmax");
+				//am = tf.argmax(pred, name: "argmax");
 			});
 
-			return (pred,am);
+			var trainable_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES);
+
+			Dictionary<string, RefVariable> subgraph_dict = (from v in trainable_vars where v.name.StartsWith(name) select v)
+				.ToDictionary(v => v.name.Remove(0, name.Length));
+
+			return (pred, subgraph_dict);
 		}
 
 		private (NDArray HandIn, NDArray MinionIn, NDArray HistoryIn) UnwrapReps(params GameRep[] reps)
@@ -135,62 +151,115 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return (hand_in, minions_in, history_in);
 		}
 
-		public NDArray ScoreStates(params GameRep[] reps)
+		public NDArray ScoreStates(bool use_online, params GameRep[] reps)
 		{
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered ScoreStates", Thread.CurrentThread.ManagedThreadId);
+
 			var input = UnwrapReps(reps);
-			return sess.run(online_pred, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn));
+			Tensor score_op = use_online ? online_pred : target_pred;
+			var result = sess.run(score_op, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn));
+
+			Console.WriteLine("{0} has exited ScoreStates", Thread.CurrentThread.ManagedThreadId);
+			mutex.ReleaseMutex();
+			return result.flat;
 		}
 
 		public void TrainStep(GameRep[] training_points, NDArray targets)
 		{
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered TrainStep", Thread.CurrentThread.Name);
+
 			var input = UnwrapReps(training_points);
 			sess.run(train_op, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn), new FeedItem(target, targets));
+
+			Console.WriteLine("{0} has exited TrainStep", Thread.CurrentThread.Name);
+			mutex.ReleaseMutex();
 		}
 
 		public void CopyOnlineToTarget()
 		{
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered CopyOnlineToTarget", Thread.CurrentThread.Name);
 
+			sess.run(copy_ops);
+
+			Console.WriteLine("{0} has exited CopyOnlineToTarget", Thread.CurrentThread.Name);
+			mutex.ReleaseMutex();
 		}
 
-		public void SaveModel()
+		public void SaveModel(int step = -1)
 		{
-			saver.save(sess, "models/testmodel.ckpt");
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered SaveModel", Thread.CurrentThread.Name);
+
+			saver.save(sess, "models/testmodel.ckpt", global_step: step);
+
+			Console.WriteLine("{0} has exited SaveModel", Thread.CurrentThread.Name);
+			mutex.ReleaseMutex();
 		}
 
 		public void LoadModel()
 		{
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered LoadModel", Thread.CurrentThread.Name);
 
+			saver.restore(sess, tf.train.latest_checkpoint("models"));
+
+			Console.WriteLine("{0} has exited LoadModel", Thread.CurrentThread.Name);
+			mutex.ReleaseMutex();
 		}
 
 		public bool StartSession()
 		{
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered StartSession", Thread.CurrentThread.Name);
+
+			bool result;
 			if (sess == null)
 			{
 				sess = tf.Session();
-				return true;
+				result = true;
 			}
 			else
 			{
-				return false;
+				result = false;
 			}
+
+			Console.WriteLine("{0} has exited StartSession", Thread.CurrentThread.Name);
+			mutex.ReleaseMutex();
+			return result;
 		}
 
 		public bool EndSession()
 		{
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered EndSession", Thread.CurrentThread.Name);
+			bool result;
+
 			if (sess != null)
 			{
 				sess.close();
-				return true;
+				sess = null;
+				result = true;
 			}
 			else
 			{
-				return false;
+				result = false;
 			}
+
+			Console.WriteLine("{0} has exited EndSession", Thread.CurrentThread.Name);
+			mutex.ReleaseMutex();
+			return result;
 		}
 
 		public void Initialize()
 		{
+			mutex.WaitOne();
+			Console.WriteLine("{0} has entered Initialize", Thread.CurrentThread.Name);
 			sess.run(init);
+			Console.WriteLine("{0} has exited Initialize", Thread.CurrentThread.Name);
+			mutex.ReleaseMutex();
 		}
 	}
 }

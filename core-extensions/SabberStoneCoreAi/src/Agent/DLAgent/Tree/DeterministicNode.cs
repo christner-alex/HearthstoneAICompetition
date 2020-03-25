@@ -156,7 +156,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			else
 			{
 				//If an end turn node, return the NN score
-				return scorer.Q(Tree.Agent.StartTurnRep, StateRep);
+				return scorer.Q(Tree.Agent.StartTurnRep, StateRep, true);
 			}
 		}
 

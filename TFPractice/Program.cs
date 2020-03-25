@@ -13,6 +13,7 @@ namespace TFPractice
     {
 		static void Main(string[] args)
         {
+			/*
 			NDArray a = np.array(12f);
 			float b = a.GetValue<float>(0);
 
@@ -30,6 +31,10 @@ namespace TFPractice
 				Console.WriteLine(o1);
 				Console.WriteLine(o2);
 			}
+			*/
+
+			SelfThreading st = new SelfThreading();
+			st.RunThreads(10);
 		}
 	}
 }

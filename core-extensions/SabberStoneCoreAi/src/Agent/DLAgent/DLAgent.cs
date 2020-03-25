@@ -145,6 +145,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			this.scorer = scorer;
 		}
 
+		public DLAgent(GameEvalNN network, float eps = 0f) : this(new Scorer(network), eps)
+		{
+
+		}
+
 		private bool CheckRep()
 		{
 			if (!Parameters.doCheckRep)

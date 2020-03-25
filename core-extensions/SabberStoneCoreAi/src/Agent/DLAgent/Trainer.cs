@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Linq;
+using System.Threading;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -17,32 +18,109 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private Array classes;
 
+		private GameEvalNN network;
+
+		private const int numTreads = 1;
+		private const int gamesPerThread = 1;
+
 		public Trainer()
 		{
 			rnd = new Random();
 
 			classes = Enum.GetValues(typeof(CardClass));
+
+			network = new GameEvalNN();
 		}
 
 		public void RunTrainingLoop()
 		{
-			GameEvalNN network = new GameEvalNN();
-			Scorer scorer = new Scorer(network);
-			DLAgent agent1 = new DLAgent(scorer);
-			DLAgent agent2 = new DLAgent(scorer);
-
 			network.StartSession();
 			network.Initialize();
+			//network.LoadModel();
 
-			//loop
-			//play training games
 			try
 			{
-				(List<GameRecord.TransitionRecord>, List<GameRecord.TransitionRecord>) records = TrainingGame(agent1, agent2);
+				//loop
+				//play training games, sometimes play testing games in parallel
+				Thread[] threads = new Thread[numTreads];
+				for(int i=0; i<numTreads; i++)
+				{
+					threads[i] = new Thread(LoopTrainingGames);
+					threads[i].Start(gamesPerThread);
+				}
+
+				foreach(Thread t in threads)
+				{
+					t.Join();
+				}
 
 				//run update
-				List<GameRecord.TransitionRecord> p1Records = records.Item1;
-				List<GameRecord.TransitionRecord> p2Records = records.Item2;
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine(ex.Message);
+			}
+
+			network.EndSession();
+
+			//test on other agents
+		}
+
+		public GameStats PlayGame(AbstractAgent player1, AbstractAgent player2, GameConfig gameConfig)
+		{
+			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
+
+			gameHandler.PlayGame();
+			return gameHandler.getGameStats();
+		}
+
+		public (List<GameRecord.TransitionRecord>, List<GameRecord.TransitionRecord>) TrainingGame()
+		{
+			try
+			{
+				DLAgent agent1 = new DLAgent(network);
+				DLAgent agent2 = new DLAgent(network);
+
+				var gameConfig = new GameConfig()
+				{
+					StartPlayer = 1,
+					Player1HeroClass = (CardClass)classes.GetValue(rnd.Next(2, 11)), //random classes
+					Player2HeroClass = (CardClass)classes.GetValue(rnd.Next(2, 11)),
+					FillDecks = true,
+					Shuffle = true,
+					Logging = false
+				};
+
+				GameStats gameStats = PlayGame(agent1, agent1, gameConfig);
+
+				List<GameRecord.TransitionRecord> p1Records = agent1.Record.ConstructTransitions(agent1.scorer, gameStats.PlayerA_Wins > 0);
+				List<GameRecord.TransitionRecord> p2Records = agent1.Record.ConstructTransitions(agent1.scorer, gameStats.PlayerB_Wins > 0);
+
+				//save the transitions
+
+				return (p1Records, p2Records);
+			}
+			catch(Exception ex)
+			{
+				//log the exception
+			}
+
+			return (null, null);
+
+		}
+
+		public void LoopTrainingGames(object itr)
+		{
+			for(int i=0; i<(int)itr; i++)
+			{
+				TrainingGame();
+			}
+		}
+
+		public void TrainNetworkStep()
+		{
+			/*
+			 * 
 
 				NDArray p1Targets = scorer.CreateTargets(p1Records.ToArray());
 				NDArray p2Targets = scorer.CreateTargets(p2Records.ToArray());
@@ -54,43 +132,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				network.TrainStep(p2Acts, p2Targets);
 
 				network.SaveModel();
-			}
-			catch(Exception ex)
-			{
-				Console.WriteLine(ex);
-			}
+			*/
 
-			//test on other agents
+			//sample transitions
 
-			network.EndSession();
-		}
+			//construct the targets
 
-		public GameStats PlayGame(AbstractAgent player1, AbstractAgent player2, GameConfig gameConfig)
-		{
-			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
+			//get the actions
 
-			gameHandler.PlayGame();
-			return gameHandler.getGameStats();
-		}
+			//train the network
 
-		public (List<GameRecord.TransitionRecord>, List<GameRecord.TransitionRecord>) TrainingGame(DLAgent player1, DLAgent player2)
-		{
-			var gameConfig = new GameConfig()
-			{
-				StartPlayer = 1,
-				Player1HeroClass = (CardClass)classes.GetValue(rnd.Next(2, 11)), //random classes
-				Player2HeroClass = (CardClass)classes.GetValue(rnd.Next(2, 11)),
-				FillDecks = true,
-				Shuffle = true,
-				Logging = false
-			};
-
-			GameStats gameStats = PlayGame(player1, player2, gameConfig);
-
-			List<GameRecord.TransitionRecord> p1Records = player1.Record.ConstructTransitions(player1.scorer, gameStats.PlayerA_Wins > 0);
-			List<GameRecord.TransitionRecord> p2Records = player2.Record.ConstructTransitions(player2.scorer, gameStats.PlayerB_Wins > 0);
-
-			return (p1Records, p2Records);
+			//save the model every so often
 		}
 
 		public GameStats TestingGame(DLAgent dlAgent, AbstractAgent otherAgent, GameConfig gameConfig)

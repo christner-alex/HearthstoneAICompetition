@@ -86,17 +86,23 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// Calculate the estimated reward gained after ending a turn with the end_state from the start_state
 		/// </summary>
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
-		public float FutureRewardEstimate(GameRep end_state)
+		public float FutureRewardEstimate(GameRep end_state, bool use_online)
 		{
 			//TODO implement neural network
 			if (Network == null) return 0f;
-			return Network.ScoreStates(end_state).GetValue<float>(0);
+
+			var result = Network.ScoreStates(use_online, end_state).GetValue<float>(0);
+
+			return result;
 		}
 
-		public NDArray FutureRewardEstimate(GameRep[] end_states)
+		public NDArray FutureRewardEstimate(GameRep[] end_states, bool use_online)
 		{
 			if (Network == null) return np.zeros(end_states.Length);
-			return Network.ScoreStates(end_states);
+
+			var result = Network.ScoreStates(use_online, end_states);
+
+			return result;
 		}
 
 		/// <summary>
@@ -105,23 +111,23 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="start_state">The GameRep representing the start of the turn meant to be scores</param>
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
-		public float Q(GameRep start_state, GameRep end_state)
+		public float Q(GameRep start_state, GameRep end_state, bool use_online)
 		{
 			return TurnReward(start_state, end_state)
-				+ FutureRewardEstimate(end_state);
+				+ FutureRewardEstimate(end_state, use_online);
 		}
 
-		public NDArray Q(GameRep[] start_states, GameRep[] end_states)
+		public NDArray Q(GameRep[] start_states, GameRep[] end_states, bool use_online)
 		{
 			NDArray turn = TurnReward(start_states, start_states);
-			NDArray future = FutureRewardEstimate(end_states);
-			return turn + future;
+			NDArray future = FutureRewardEstimate(end_states, use_online);
+			return np.add(turn, future);
 		}
 
-		public NDArray Q(GameRep start_state, GameRep[] end_states)
+		public NDArray Q(GameRep start_state, GameRep[] end_states, bool use_online)
 		{
 			var start_states = Enumerable.Repeat(start_state, end_states.Length).ToArray();
-			return Q(start_states, end_states);
+			return Q(start_states, end_states, use_online);
 		}
 
 		/// <summary>
@@ -137,10 +143,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return TurnReward(p1_start, p1_end) - TurnReward(p1_end, p2_end, modify_opponent_score);
 		}
 
+		/// <summary>
+		/// Use the target portion of the network to create target values for each of the transitions
+		/// </summary>
+		/// <param name="transitions"></param>
+		/// <returns></returns>
 		public NDArray CreateTargets(params GameRecord.TransitionRecord[] transitions)
 		{
 			//target = r + lambda * max_a' Q(s', a')
-			var l = from t in transitions select t.reward + (t.successor_actions?.Score(this) ?? 0);
+			var l = from t in transitions select t.reward + (t.successor_actions?.BestQScore(this) ?? 0);
 			return np.array(l.ToArray());
 		}
 

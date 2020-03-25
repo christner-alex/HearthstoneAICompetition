@@ -6,6 +6,7 @@ using System.Linq;
 using System.Diagnostics;
 using SabberStoneCore.Model.Entities;
 using SabberStoneCore.Model;
+using NumSharp;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -417,6 +418,28 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				return (0, null);
 			}
 
+			//get the best deterministic node and score
+			DeterministicNode[] DetNodes = DeterministicNodes.Values.ToArray();
+			NDArray DetScores = Agent.scorer.Q(Agent.StartTurnRep, (from d in DetNodes select d.StateRep).ToArray(), true);
+			float bestDetScore = DetScores.max().GetValue<float>(0);
+			int bestDetIndex = DetScores.argmax();
+			Node bestDetNode = DetNodes[bestDetIndex];
+
+			//if there are chance nodes, get the best of them
+			float bestChanceScore = float.MinValue;
+			Node bestChanceNode = null;
+			if (ChanceNodes.Count > 0)
+			{
+				List<float> ChanceScores = (from c in ChanceNodes select c.Score()).ToList();
+				bestChanceScore = ChanceScores.Max();
+				int bestChanceIndex = ChanceScores.IndexOf(bestChanceScore);
+				bestChanceNode = ChanceNodes[bestChanceIndex];
+			}
+
+			CheckRep();
+			return bestDetScore >= bestChanceScore ? (bestDetScore, bestDetNode) : (bestChanceScore, bestChanceNode);
+
+			/*
 			//otherwise, return the end turn or chance node with the highest score
 			Node bestnode = null;
 			float bestscore = float.MinValue;
@@ -432,6 +455,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			CheckRep();
 			return (bestscore, bestnode);
+			*/
 		}
 
 		public class SparseTree
@@ -449,11 +473,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				ChanceActions = (from n in tree.ChanceNodes select (from t in n.ChildrenTrees.Values select new SparseTree(t)).ToList()).ToList();
 			}
 
-			public float Score(Scorer scorer)
+			public float BestQScore(Scorer scorer)
 			{
-				float bestDetScore = DetActions.Count > 0 ? scorer.Q(Root, DetActions.ToArray()).max().GetValue<float>(0) : float.MinValue;
+				float bestDetScore = DetActions.Count > 0 ? scorer.Q(Root, DetActions.ToArray(), false).max().GetValue<float>(0) : float.MinValue;
 
-				var chanceScores = (from t in ChanceActions where t.Count>0 select t.Average(x => x.Score(scorer))).ToList();
+				var chanceScores = (from t in ChanceActions where t.Count>0 select t.Average(x => x.BestQScore(scorer))).ToList();
 				float bestChanceScore = chanceScores.Count == 0 ? float.MinValue : chanceScores.Max();
 				return Math.Max(bestDetScore, bestChanceScore);
 			}
@@ -506,6 +530,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 			}
 
+			if(DeterministicNodes.Count == 0)
+			{
+				Console.WriteLine("MaxTree: There are no deterministic nodes");
+				result = false;
+			}
 
 			if (Root.Predecessor != null)
 			{
