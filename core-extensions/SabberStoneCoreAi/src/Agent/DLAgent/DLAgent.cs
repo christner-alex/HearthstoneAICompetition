@@ -29,6 +29,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public float Epsilon { get; set; }
 		private bool do_random;
+		private bool do_epsilon;
 
 		public POGame.POGame StartTurnState { get; private set; }
 
@@ -53,8 +54,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				turn_watch.Start();
 
-				//with chance of epsilon, make random moves this turn.
-				//do_random = rnd.NextDouble() < Epsilon;
+				
 				do_random = false;
 
 				//keep track of the state the turn starts on
@@ -66,6 +66,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//create a new tree for the start of the turn
 				tree = null;
 				root_tree = null;
+
+				//with chance of epsilon, make random moves this turn.
+				//(making sure to still construct the root decision tree)
+				do_epsilon = rnd.NextDouble() < Epsilon;
 			}
 
 			PlayerTask move = null;
@@ -94,8 +98,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				if (root_tree == null) root_tree = tree;
 			}
 
-			//if a move has not been found, return a random move
-			if (move == null)
+			//if a move has not been found or we are doing Epsilon moves this turn, return a random move
+			if (move == null || do_epsilon)
 			{
 				List<PlayerTask> l = poGame.CurrentPlayer.Options();
 				move = l[rnd.Next(l.Count)];
@@ -128,6 +132,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Record = new GameRecord();
 
 			do_random = false;
+			do_epsilon = false;
 
 			StartTurnState = null;
 			StartTurnRep = null;
@@ -143,11 +148,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Epsilon = Math.Clamp(eps, 0f, 1f);
 
 			this.scorer = scorer;
-		}
-
-		public DLAgent(GameEvalNN network, float eps = 0f) : this(new Scorer(network), eps)
-		{
-
 		}
 
 		private bool CheckRep()

@@ -15,12 +15,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public readonly float LossScore;
 		public readonly float OpponentScoreModifier;
 
+		public float Gamma { get; set; }
+
 		private readonly NDArray diff_weights;
 		private readonly NDArray end_weights;
 
 		public GameEvalNN Network { get; }
 
-		public Scorer(GameEvalNN network = null, float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
+		public Scorer(GameEvalNN network = null, float gamma = 0.99f, float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
 		{
 			diff_weights = np.array(
 				0.1f, //player_health
@@ -43,6 +45,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			WinScore = win_score;
 			LossScore = loss_score;
 			OpponentScoreModifier = opponent_modifier;
+
+			Gamma = gamma;
 
 			Network = network;
 
@@ -151,7 +155,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public NDArray CreateTargets(params GameRecord.TransitionRecord[] transitions)
 		{
 			//target = r + lambda * max_a' Q(s', a')
-			var l = from t in transitions select t.reward + (t.successor_actions?.BestQScore(this) ?? 0);
+			var l = from t in transitions select t.reward + Gamma * (t.successor_actions?.DoubleQScore(this) ?? 0);
 			return np.array(l.ToArray());
 		}
 

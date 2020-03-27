@@ -461,31 +461,78 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public class SparseTree
 		{
 			public GameRep Root;
-			public List<GameRep> DetActions;
-			public List<List<SparseTree>> ChanceActions;
+			public GameRep[] DetActions;
+			public SparseTree[][] ChanceActions;
 
-			public SparseTree(MaxTree tree)
+			public SparseTree(MaxTree tree, GameRep root)
 			{
-				Root = tree.Root.StateRep.Copy();
+				Root = root.Copy();
 
-				DetActions = (from rep in tree.DeterministicNodes.Keys select rep.Copy()).ToList();
+				DetActions = (from rep in tree.DeterministicNodes.Keys select rep.Copy()).ToArray();
 
-				ChanceActions = (from n in tree.ChanceNodes select (from t in n.ChildrenTrees.Values select new SparseTree(t)).ToList()).ToList();
+				ChanceActions = (from n in tree.ChanceNodes select (from t in n.ChildrenTrees.Values select new SparseTree(t,root)).ToArray()).ToArray();
 			}
 
-			public float BestQScore(Scorer scorer)
+			public float ScoreDets(Scorer scorer, bool use_online)
 			{
-				float bestDetScore = DetActions.Count > 0 ? scorer.Q(Root, DetActions.ToArray(), false).max().GetValue<float>(0) : float.MinValue;
+				return DetActions.Length > 0 ? scorer.Q(Root, DetActions.ToArray(), use_online).max().GetValue<float>(0) : float.MinValue;
+			}
 
-				var chanceScores = (from t in ChanceActions where t.Count>0 select t.Average(x => x.BestQScore(scorer))).ToList();
-				float bestChanceScore = chanceScores.Count == 0 ? float.MinValue : chanceScores.Max();
+			public List<float> ScoreChance(Scorer scorer, bool use_online)
+			{
+				var chanceScores = (from t in ChanceActions where t.Length > 0 select t.Average(x => x.Score(scorer, use_online))).ToList();
+				return chanceScores.Count == 0 ? new List<float>() { float.MinValue } : chanceScores;
+			}
+
+			public float Score(Scorer scorer, bool use_online)
+			{
+				float bestDetScore = ScoreDets(scorer, use_online);
+
+				float bestChanceScore = ScoreChance(scorer, use_online).Max();
+
 				return Math.Max(bestDetScore, bestChanceScore);
+			}
+
+			/// <summary>
+			/// Calculates the DoubleDQN score for this Sparse tree, which is the target score of the action with the highest online score
+			/// </summary>
+			/// <param name="scorer"></param>
+			/// <returns></returns>
+			public float DoubleQScore(Scorer scorer)
+			{
+				//get the best deterministic node and score
+				NDArray DetScores = ScoreDets(scorer, true);
+				float bestDetScore = DetScores.max().GetValue<float>(0);
+
+				//if there are chance nodes, get the best of them
+				float bestChanceScore = float.MinValue;
+				List<float> ChanceScores = new List<float>() { float.MinValue };
+				if (ChanceActions.Length > 0)
+				{
+					ChanceScores = ScoreChance(scorer, true);
+					bestChanceScore = ChanceScores.Max();
+				}
+
+				//if the online score is best for a deterministic node...
+				if(bestDetScore >= bestChanceScore)
+				{
+					//return the target score of that node
+					GameRep bestDetNode = DetActions[DetScores.argmax()];
+					return scorer.Q(Root, bestDetNode, false);
+				}
+				//if the online score is best for a chance node...
+				else
+				{
+					//return the target score for that node
+					var bestChanceNode = ChanceActions[ChanceScores.IndexOf(bestChanceScore)];
+					return (from t in bestChanceNode select t.Score(scorer, false)).Average();
+				}
 			}
 		}
 
 		public SparseTree CreateSparseTree()
 		{
-			return new SparseTree(this);
+			return new SparseTree(this,this.Root.StateRep);
 		}
 
 		public bool CheckRep()

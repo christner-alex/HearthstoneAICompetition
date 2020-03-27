@@ -154,13 +154,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public NDArray ScoreStates(bool use_online, params GameRep[] reps)
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered ScoreStates", Thread.CurrentThread.ManagedThreadId);
 
 			var input = UnwrapReps(reps);
 			Tensor score_op = use_online ? online_pred : target_pred;
 			var result = sess.run(score_op, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn));
 
-			Console.WriteLine("{0} has exited ScoreStates", Thread.CurrentThread.ManagedThreadId);
 			mutex.ReleaseMutex();
 			return result.flat;
 		}
@@ -168,52 +166,58 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public void TrainStep(GameRep[] training_points, NDArray targets)
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered TrainStep", Thread.CurrentThread.Name);
 
 			var input = UnwrapReps(training_points);
 			sess.run(train_op, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn), new FeedItem(target, targets));
 
-			Console.WriteLine("{0} has exited TrainStep", Thread.CurrentThread.Name);
 			mutex.ReleaseMutex();
 		}
 
 		public void CopyOnlineToTarget()
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered CopyOnlineToTarget", Thread.CurrentThread.Name);
+
+			Console.WriteLine("Online last:");
+			Console.WriteLine(online_vars.Values.Last().value().eval(sess).ToString());
+			Console.WriteLine("Target last:");
+			Console.WriteLine(target_vars.Values.Last().value().eval(sess).ToString());
 
 			sess.run(copy_ops);
 
-			Console.WriteLine("{0} has exited CopyOnlineToTarget", Thread.CurrentThread.Name);
+			Console.WriteLine("Online last:");
+			Console.WriteLine(online_vars.Values.Last().value().eval(sess).ToString());
+			Console.WriteLine("Target last:");
+			Console.WriteLine(target_vars.Values.Last().value().eval(sess).ToString());
+
 			mutex.ReleaseMutex();
 		}
 
 		public void SaveModel(int step = -1)
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered SaveModel", Thread.CurrentThread.Name);
 
 			saver.save(sess, "models/testmodel.ckpt", global_step: step);
 
-			Console.WriteLine("{0} has exited SaveModel", Thread.CurrentThread.Name);
 			mutex.ReleaseMutex();
 		}
 
 		public void LoadModel()
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered LoadModel", Thread.CurrentThread.Name);
 
 			saver.restore(sess, tf.train.latest_checkpoint("models"));
 
-			Console.WriteLine("{0} has exited LoadModel", Thread.CurrentThread.Name);
+			Console.WriteLine("Online last:");
+			Console.WriteLine(online_vars.Values.Last().value().eval(sess).ToString());
+			Console.WriteLine("Target last:");
+			Console.WriteLine(target_vars.Values.Last().value().eval(sess).ToString());
+
 			mutex.ReleaseMutex();
 		}
 
 		public bool StartSession()
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered StartSession", Thread.CurrentThread.Name);
 
 			bool result;
 			if (sess == null)
@@ -226,7 +230,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				result = false;
 			}
 
-			Console.WriteLine("{0} has exited StartSession", Thread.CurrentThread.Name);
 			mutex.ReleaseMutex();
 			return result;
 		}
@@ -234,7 +237,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public bool EndSession()
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered EndSession", Thread.CurrentThread.Name);
 			bool result;
 
 			if (sess != null)
@@ -248,7 +250,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				result = false;
 			}
 
-			Console.WriteLine("{0} has exited EndSession", Thread.CurrentThread.Name);
 			mutex.ReleaseMutex();
 			return result;
 		}
@@ -256,9 +257,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public void Initialize()
 		{
 			mutex.WaitOne();
-			Console.WriteLine("{0} has entered Initialize", Thread.CurrentThread.Name);
+
 			sess.run(init);
-			Console.WriteLine("{0} has exited Initialize", Thread.CurrentThread.Name);
+
 			mutex.ReleaseMutex();
 		}
 	}
