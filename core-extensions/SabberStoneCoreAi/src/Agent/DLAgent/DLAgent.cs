@@ -10,6 +10,8 @@ using System.Linq;
 using System.Diagnostics;
 using SabberStoneCore.Model.Entities;
 using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
+using System.IO;
+using Newtonsoft.Json;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -54,7 +56,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				turn_watch.Start();
 
-				
 				do_random = false;
 
 				//keep track of the state the turn starts on
@@ -96,6 +97,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				tree.Run(t);
 
 				if (root_tree == null) root_tree = tree;
+
+				//if the tree found lethal, overwrite doing epsilon moves
+				if(tree.FoundLethal) do_epsilon = false;
 			}
 
 			//if a move has not been found or we are doing Epsilon moves this turn, return a random move
@@ -113,7 +117,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				turn_watch.Reset();
 
-				//TODO: find the true endturn state somehow
+				//record the end of turn state
 				Record.PushAction(poGame, root_tree);
 			}
 
@@ -127,8 +131,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public override void InitializeGame()
 		{
-			rnd = new Random();
-
 			Record = new GameRecord();
 
 			do_random = false;
@@ -148,6 +150,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Epsilon = Math.Clamp(eps, 0f, 1f);
 
 			this.scorer = scorer;
+
+			rnd = new Random();
+
+			InitializeGame();
 		}
 
 		private bool CheckRep()

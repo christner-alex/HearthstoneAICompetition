@@ -4,6 +4,8 @@ using System.Text;
 using System.Linq;
 using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
 using NumSharp;
+using Newtonsoft.Json;
+using System.IO;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -33,7 +35,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			//a new state should only be added if
 			//every previous state already has an action
-			if(States.Count == Actions.Count)
+			if (States.Count == Actions.Count)
 			{
 				States.Add(state.Copy());
 				return true;
@@ -55,6 +57,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				Actions.Add(action.Copy());
 				SuccessorTrees.Add(stree);
+
 				return true;
 			}
 
@@ -70,17 +73,18 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			List<TransitionRecord> records = new List<TransitionRecord>();
 
-			for (int i=0; i<Actions.Count; i++)
+			for (int i = 0; i < Actions.Count; i++)
 			{
 				TransitionRecord r = new TransitionRecord();
 				r.state = States[i].Copy();
 				r.action = Actions[i].Copy();
-				r.successor = i+1 < States.Count ? States[i + 1].Copy() : null;
+				r.successor = i + 1 < States.Count ? States[i + 1].Copy() : null;
 				r.successor_actions = i + 1 < SuccessorTrees.Count ? SuccessorTrees[i + 1] : null;
 
 				//if the action lead to the terminal state, get the win or loss score
 				if (i == Actions.Count - 1)
 				{
+					//if the action lead to the terminal state, get the win or loss score
 					r.reward = won ? scorer.WinScore : scorer.LossScore;
 				}
 				else
@@ -95,8 +99,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			return records;
 		}
-		
-		public List<NDArray> LastStates(int n)
+
+		public List<NDArray> LastBoards(int n)
 		{
 			return States.TakeLast(n).Select(x => x.BoardRep).ToList();
 		}

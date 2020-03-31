@@ -1,4 +1,5 @@
-﻿using NumSharp;
+﻿using Newtonsoft.Json;
+using NumSharp;
 using SabberStoneCore.Enums;
 using SabberStoneCore.Model;
 using SabberStoneCore.Model.Entities;
@@ -8,28 +9,39 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class GameRep : IEquatable<GameRep>
 	{
-		//private readonly NDArray representation;
+		private NDArray friendly_minion_rep;
+		private NDArray enemy_minion_rep;
+		private NDArray hand_rep;
+		private NDArray board_rep;
+		private NDArray history_rep;
 
-		private readonly NDArray friendly_minion_rep;
-		private readonly NDArray enemy_minion_rep;
-		private readonly NDArray hand_rep;
-		private readonly NDArray board_rep;
-		private readonly NDArray history_rep;
+		public NDArray FriendlyMinionRep { get { return friendly_minion_rep.copy(); } private set { friendly_minion_rep = value; } }
+		public NDArray EnemyMinionRep { get { return enemy_minion_rep.copy(); } private set { enemy_minion_rep = value; } }
+		public NDArray HandRep { get { return hand_rep.copy(); } private set { hand_rep = value; } }
+		public NDArray BoardRep { get { return board_rep.copy(); } private set { board_rep = value; } }
+		public NDArray HistoryRep { get { return history_rep.copy(); } private set { history_rep = value; } }
 
-		public const int minion_vec_len = 12;
+		[JsonIgnore]
+		public NDArray FullHistoryRep => np.concatenate(new NDArray[] { HistoryRep, np.expand_dims(BoardRep, 0) }, axis: 0);
+		[JsonIgnore]
+		public NDArray FlatRep => np.concatenate(new NDArray[] { HandRep.flat, FriendlyMinionRep.flat, EnemyMinionRep.flat, BoardRep.flat, HistoryRep.flat });
+
+
+		public const int minion_vec_len = 14;
 		public const int card_vec_len = 7;
-		public const int board_vec_len = 12;
+		public const int board_vec_len = 13;
 
 		public const int max_minions = 14;
 		public const int max_side_minions = 7;
 		public const int max_hand_cards = 10;
 		public const int max_num_boards = 2;
-		public const int max_num_history = 5;
+		public const int max_num_history = 3;
 
 		/// <summary>
 		/// A wrapper for an NDArray which serves both as a key for the MaxTree state dictionaries
@@ -81,26 +93,26 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			//stack the results to get each representation
 
-			board_rep = BoardToVec(poGame);
+			BoardRep = BoardToVec(poGame);
 
-			hand_rep = np.stack(hand_vecs.ToArray());
+			HandRep = np.stack(hand_vecs.ToArray());
 
-			friendly_minion_rep = np.stack(player_minion_vecs.ToArray());
+			FriendlyMinionRep = np.stack(player_minion_vecs.ToArray());
 
-			enemy_minion_rep = np.stack(opponent_minion_vecs.ToArray());
+			EnemyMinionRep = np.stack(opponent_minion_vecs.ToArray());
 
-			history_rep = HistoryToVec(record);
+			HistoryRep = HistoryToVec(record);
 
 			CheckRep();
 		}
 
 		public GameRep(GameRep rep)
 		{
-			friendly_minion_rep = rep.FriendlyMinionRep;
-			enemy_minion_rep = rep.EnemyMinionRep;
-			board_rep = rep.BoardRep;
-			hand_rep = rep.HandRep;
-			history_rep = rep.HistoryRep;
+			FriendlyMinionRep = rep.FriendlyMinionRep;
+			EnemyMinionRep = rep.EnemyMinionRep;
+			BoardRep = rep.BoardRep;
+			HandRep = rep.HandRep;
+			HistoryRep = rep.HistoryRep;
 
 			CheckRep();
 		}
@@ -110,13 +122,23 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return new GameRep(this);
 		}
 
-		public NDArray FriendlyMinionRep => friendly_minion_rep.copy();
-		public NDArray EnemyMinionRep => enemy_minion_rep.copy();
-		public NDArray BoardRep => board_rep.copy();
-		public NDArray HandRep => hand_rep.copy();
-		public NDArray HistoryRep => history_rep.copy();
-		public NDArray FullHistoryRep => np.concatenate(new NDArray[] { history_rep, np.expand_dims(board_rep, 0) }, axis:0);
-		public NDArray FlatRep => np.concatenate(new NDArray[] { hand_rep.flat, friendly_minion_rep.flat, enemy_minion_rep.flat, board_rep.flat, history_rep.flat });
+		[JsonConstructor]
+		public GameRep(int[] friendlyMinionRep, int[] enemyMinionRep, int[] handRep, int[] boardRep, int[] historyRep)
+		{
+			FriendlyMinionRep = np.array(friendlyMinionRep).reshape(max_side_minions, minion_vec_len);
+			EnemyMinionRep = np.array(enemyMinionRep).reshape(max_side_minions, minion_vec_len);
+			HandRep = np.array(handRep).reshape(max_hand_cards, card_vec_len);
+			BoardRep = np.array(boardRep).reshape(max_num_boards, board_vec_len);
+			HistoryRep = np.array(historyRep).reshape(max_num_history, max_num_boards, board_vec_len);
+		}
+
+		//public NDArray FriendlyMinionRep => friendly_minion_rep.copy();
+		//public NDArray EnemyMinionRep => enemy_minion_rep.copy();
+		//public NDArray BoardRep => board_rep.copy();
+		//public NDArray HandRep => hand_rep.copy();
+		//public NDArray HistoryRep => history_rep.copy();
+		//public NDArray FullHistoryRep => np.concatenate(new NDArray[] { history_rep, np.expand_dims(board_rep, 0) }, axis:0);
+		//public NDArray FlatRep => np.concatenate(new NDArray[] { hand_rep.flat, friendly_minion_rep.flat, enemy_minion_rep.flat, board_rep.flat, history_rep.flat });
 
 		public bool Equals(GameRep other)
 		{
@@ -146,7 +168,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				player.BoardZone.Sum(p => p.Health), //player_total_health
 				player.BoardZone.Where(p => p.HasTaunt).Sum(p => p.Health), //player taunt_health
 				player.Hero.Weapon != null ? player.Hero.Weapon.AttackDamage : 0, //player_weapon_atk
-				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0 //player_weapon_dur
+				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0, //player_weapon_dur
+				player.Game.Turn // player turn
 			);
 		}
 
@@ -177,31 +200,45 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			int attack = minion.AttackDamage;
 			int health = minion.Health;
 			int can_attack = minion.CanAttack ? 1 : 0;
+			int deathrattle = minion.HasDeathrattle ? 1 : 0;
 			int divine_shild = minion.HasDivineShield ? 1 : 0;
 			int elusive = minion.CantBeTargetedBySpells ? 1 : 0;
 			int frozen = minion.IsFrozen ? 1 : 0;
+			int inspire = minion.HasInspire ? 1 : 0;
 			int lifesteal = minion.HasLifeSteal ? 1 : 0;
-			int silenced = minion.IsSilenced ? 1 : 0;
+			int poisonous = minion.Poisonous ? 1 : 0;
+			//int silenced = minion.IsSilenced ? 1 : 0;
 			int spell_power = minion.SpellPower;
 			int stealthed = minion.HasStealth ? 1 : 0;
 			int taunt = minion.HasTaunt ? 1 : 0;
 			int windfury = minion.HasWindfury ? 1 : 0;
-			//string text = minion.Card.Text; //TODO, add card text or something similar
-
-			NDArray result = np.array(attack, health, can_attack, divine_shild, elusive, frozen, lifesteal, silenced, spell_power, stealthed, taunt, windfury);
+			
+			NDArray result = np.array(attack, health, can_attack, deathrattle, divine_shild, elusive, frozen, inspire, lifesteal, poisonous, spell_power, stealthed, taunt, windfury);
 
 			return result;
 		}
 
 		public static NDArray CardToVec(Card card)
 		{
-			//TODO: add text, tribe
-
 			NDArray result = np.zeros(new Shape(card_vec_len), NPTypeCode.Int32);
 			if (card==null)
 			{
 				return result;
 			}
+
+			/*
+			// Get the first three numbers in the text
+			string text = card.Text.ToLower();
+			string[] numbers = Regex.Split(text, @"\D+");
+			NDArray nums = np.zeros(new Shape(3), NPTypeCode.Int32);
+			for(int i=0; i<numbers.Length && i<3; i++)
+			{
+				if (!string.IsNullOrEmpty(numbers[i]))
+				{
+					nums[i] = int.Parse(numbers[i]);
+				}
+			}
+			*/
 
 			int a = 0;
 			int b = 0;
@@ -235,13 +272,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			result["4:"] = np.array(a, b, c);
+			//result["7:"] = nums;
 
 			return result;
 		}
 
 		public static NDArray HistoryToVec(GameRecord rec)
 		{
-			List<NDArray> last_states = (from h in rec.LastStates(max_num_history) select h.copy()).ToList();
+			List<NDArray> last_states = rec.LastBoards(max_num_history);
 
 			while (last_states.Count < GameRep.max_num_history)
 			{

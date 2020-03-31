@@ -1,5 +1,1 @@
 NEXT:
-- add more information that represents action to the board component of the state rep
-- change scorer functions to take lists of states rather than just one at a time
-- implement copy op and train algorithm
-- find a good way to store data (database)

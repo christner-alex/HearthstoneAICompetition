@@ -13,38 +13,84 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public readonly float WinScore;
 		public readonly float LossScore;
-		public readonly float OpponentScoreModifier;
 
 		public float Gamma { get; set; }
 
-		private readonly NDArray diff_weights;
-		private readonly NDArray end_weights;
+		private readonly NDArray friendly_diff_weights;
+		private readonly NDArray enemy_diff_weights;
+		private readonly NDArray friendly_end_weights;
+		private readonly NDArray enemy_end_weights;
 
-		public GameEvalNN Network { get; }
+		public GameEvalDQN Network { get; }
 
-		public Scorer(GameEvalNN network = null, float gamma = 0.99f, float win_score = 100f, float loss_score = -100f, float opponent_modifier = 0.8f)
+		public Scorer(GameEvalDQN network = null, float gamma = 0.99f, float win_score = 100f, float loss_score = -100f)
 		{
-			diff_weights = np.array(
-				0.1f, //player_health
+			friendly_diff_weights = np.array(
+				0.05f, //player_health
 				0f, //player_base_mana
 				0f, //player_remaining_mana
-				0.2f, //player_hand_size
-				0.5f, //player_board_size
+				0.1f, //player_hand_size
+				0.3f, //player_board_size
 				0.01f, //player_deck_size
-				0.3f, //player_secret_size
+				0.2f, //player_secret_size
 				0.1f, //player_total_atk
 				0.1f, //player_total_health
-				0.2f, //player taunt_health
-				0.5f, //player_weapon_atk
-				0.2f //player_weapon_dur
+				0.1f, //player taunt_health
+				0.2f, //player_weapon_atk
+				0.2f, //player_weapon_dur
+				0f //game turn
 			);
 
-			end_weights = np.zeros(new Shape(GameRep.board_vec_len), NPTypeCode.Float);
-			end_weights[2] = -1f;
+			enemy_diff_weights = np.array(
+				-0.05f, //player_health
+				0f, //player_base_mana
+				0f, //player_remaining_mana
+				-0.1f, //player_hand_size
+				-0.3f, //player_board_size
+				-0.01f, //player_deck_size
+				-0.2f, //player_secret_size
+				-0.1f, //player_total_atk
+				-0.1f, //player_total_health
+				-0.1f, //player taunt_health
+				-0.2f, //player_weapon_atk
+				-0.2f, //player_weapon_dur
+				0f //game turn
+			);
+
+			friendly_end_weights = np.array(
+				0f, //player_health
+				0f, //player_base_mana
+				-0.5f, //player_remaining_mana
+				0f, //player_hand_size
+				0f, //player_board_size
+				0f, //player_deck_size
+				0f, //player_secret_size
+				0f, //player_total_atk
+				0f, //player_total_health
+				0f, //player taunt_health
+				0f, //player_weapon_atk
+				0f, //player_weapon_dur
+				-0.5f //game turn
+			);
+
+			enemy_end_weights = np.array(
+				0f, //player_health
+				0f, //player_base_mana
+				0.5f, //player_remaining_mana
+				0f, //player_hand_size
+				0f, //player_board_size
+				0f, //player_deck_size
+				0f, //player_secret_size
+				0f, //player_total_atk
+				0f, //player_total_health
+				0f, //player taunt_health
+				0f, //player_weapon_atk
+				0f, //player_weapon_dur
+				0f //game turn
+			);
 
 			WinScore = win_score;
 			LossScore = loss_score;
-			OpponentScoreModifier = opponent_modifier;
 
 			Gamma = gamma;
 
@@ -58,7 +104,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		/// <param name="start_state">The GameRep representing the start of the turn meant to be scores</param>
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
-		public float TurnReward(GameRep start_state, GameRep end_state, bool modify_enemy_score = false)
+		public float TurnReward(GameRep start_state, GameRep end_state)
 		{
 			NDArray start_board = start_state.BoardRep.astype(NPTypeCode.Float);
 			NDArray end_board = end_state.BoardRep.astype(NPTypeCode.Float);
@@ -71,18 +117,17 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			NDArray friendly_difference = friendly_end_board - friendly_start_board;
 			NDArray enemy_difference = enemy_end_board - enemy_start_board;
 
-			float modify = modify_enemy_score ? OpponentScoreModifier : 1f;
-			NDArray result = friendly_difference.dot(diff_weights)
-				- modify * enemy_difference.dot(diff_weights)
-				+ friendly_end_board.dot(end_weights)
-				- modify * enemy_end_board.dot(end_weights);
+			NDArray result = friendly_difference.dot(friendly_diff_weights)
+				+ enemy_difference.dot(enemy_diff_weights)
+				+ friendly_end_board.dot(friendly_end_weights)
+				+ enemy_end_board.dot(enemy_end_weights);
 			return result.astype(NPTypeCode.Float).ToArray<float>()[0];
 		}
 
-		public NDArray TurnReward(GameRep[] start_states, GameRep[] end_states, bool modify_enemy_score = false)
+		public NDArray TurnReward(GameRep[] start_states, GameRep[] end_states)
 		{
 			var l = from int i in Enumerable.Range(0, start_states.Length)
-					select TurnReward(start_states[i], end_states[i], modify_enemy_score);
+					select TurnReward(start_states[i], end_states[i]);
 			return np.array(l.ToArray());
 		}
 
@@ -139,12 +184,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// the reward gained by the current player on their turn and the opposite of the reward gained by the
 		/// opposing player on their turn.
 		/// </summary>
-		/// <param name="p1_start">The GameRep representing the start of the turn meant to be scores</param>
-		/// <param name="p1_end">The GameRep representing the result of taking the end turn action from p1_start</param>
-		/// <param name="p1_end">The GameRep representing the start of the players turn after opponent ended their turn from p1_end</param>
-		public float ScoreTransition(GameRep p1_start, GameRep p1_end, GameRep p2_end, bool modify_opponent_score = false)
+		/// <param name="turn1start">The GameRep representing the start of the turn meant to be scores</param>
+		/// <param name="turn1end">The GameRep representing the result of taking the end turn action from p1_start</param>
+		/// <param name="turn1end">The GameRep representing the start of the players turn after opponent ended their turn from p1_end</param>
+		public float ScoreTransition(GameRep turn1start, GameRep turn1end, GameRep turn2start)
 		{
-			return TurnReward(p1_start, p1_end) - TurnReward(p1_end, p2_end, modify_opponent_score);
+			return TurnReward(turn1start, turn1end) - TurnReward(turn1end, turn2start);
 		}
 
 		/// <summary>
@@ -167,12 +212,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			bool result = true;
-
-			if(diff_weights.size != end_weights.size || end_weights.size != GameRep.board_vec_len)
-			{
-				Console.WriteLine("The weight vectors are not the right length");
-				result = false;
-			}
 
 			return result;
 		}

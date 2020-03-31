@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
-	class GameEvalNN
+	class GameEvalDQN
 	{
 		Mutex mutex;
 
@@ -21,9 +21,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public readonly int minions_input_row, minions_input_col, full_history_length;
 
 		//constant hyperparameters about the network
-		public const int num_hand_filters = 3;
-		public const int num_minions_filters = 3;
-		public const int rnn_units = 5;
+		public const int num_hand_filters = 1;
+		public const int num_minions_filters = 1;
+		public const int rnn_units = 3;
 
 		//prediction tensors
 		protected Tensor online_pred, target_pred;
@@ -44,7 +44,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private Operation init;
 		private Saver saver;
 
-		public GameEvalNN()
+		public GameEvalDQN()
 		{
 			minions_input_row = GameRep.max_side_minions * GameRep.max_side_minions;
 			minions_input_col = GameRep.minion_vec_len * 2;
@@ -143,7 +143,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return (pred, subgraph_dict);
 		}
 
-		private (NDArray HandIn, NDArray MinionIn, NDArray HistoryIn) UnwrapReps(params GameRep[] reps)
+		public (NDArray HandIn, NDArray MinionIn, NDArray HistoryIn) UnwrapReps(params GameRep[] reps)
 		{
 			NDArray hand_in = np.stack((from r in reps select r.HandRep).ToArray());
 			NDArray minions_in = np.stack((from r in reps select r.ConstructMinionPairs()).ToArray());
@@ -177,17 +177,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			mutex.WaitOne();
 
-			Console.WriteLine("Online last:");
-			Console.WriteLine(online_vars.Values.Last().value().eval(sess).ToString());
-			Console.WriteLine("Target last:");
-			Console.WriteLine(target_vars.Values.Last().value().eval(sess).ToString());
-
 			sess.run(copy_ops);
-
-			Console.WriteLine("Online last:");
-			Console.WriteLine(online_vars.Values.Last().value().eval(sess).ToString());
-			Console.WriteLine("Target last:");
-			Console.WriteLine(target_vars.Values.Last().value().eval(sess).ToString());
 
 			mutex.ReleaseMutex();
 		}
@@ -196,7 +186,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			mutex.WaitOne();
 
-			saver.save(sess, "models/testmodel.ckpt", global_step: step);
+			saver.save(sess, "GameEvalDQN/model.ckpt", global_step: step);
 
 			mutex.ReleaseMutex();
 		}
@@ -205,12 +195,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			mutex.WaitOne();
 
-			saver.restore(sess, tf.train.latest_checkpoint("models"));
-
-			Console.WriteLine("Online last:");
-			Console.WriteLine(online_vars.Values.Last().value().eval(sess).ToString());
-			Console.WriteLine("Target last:");
-			Console.WriteLine(target_vars.Values.Last().value().eval(sess).ToString());
+			saver.restore(sess, tf.train.latest_checkpoint("GameEvalDQN"));
 
 			mutex.ReleaseMutex();
 		}
