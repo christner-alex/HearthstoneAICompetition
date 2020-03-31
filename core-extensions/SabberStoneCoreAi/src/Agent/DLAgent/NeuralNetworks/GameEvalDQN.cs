@@ -25,6 +25,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public const int num_minions_filters = 1;
 		public const int rnn_units = 3;
 
+		public const float regularization_param = 0.00001f;
+
 		//prediction tensors
 		protected Tensor online_pred, target_pred;
 
@@ -32,7 +34,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		protected Dictionary<string, RefVariable> online_vars, target_vars;
 
 		//operation for copying online variables to the correspoding target variables
-		private Operation copy_ops;
+		protected Operation copy_ops;
+
+		protected IInitializer initializer;
+
+		protected Tensor[] online_reg_terms;
+		protected Tensor online_reg;
 
 		//bits for training the network
 		private Tensor loss;
@@ -40,7 +47,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private Operation train_op;
 
 		//bits for running the network
-		private Session sess;
+		protected Session sess;
 		private Operation init;
 		private Saver saver;
 
@@ -57,6 +64,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			target = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1), name: "target_input");
 
+			initializer = tf.random_normal_initializer(stddev: 0.1f);
+
 			//create identical graphs for the online network and the target network
 			(online_pred, online_vars) = CreateSubgraph("online");
 			(target_pred, target_vars) = CreateSubgraph("target");
@@ -64,8 +73,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			var cops = from v in target_vars select v.Value.assign(online_vars[v.Key]);
 			copy_ops = tf.group(cops.ToArray());
 
+			online_reg_terms = (from v in online_vars select tf.reduce_sum(tf.square(v.Value))).ToArray(); // squared sum of the variable
+			online_reg = tf.add_n(online_reg_terms);
+
 			optim = tf.train.AdamOptimizer(0.01f);
-			loss = tf.reduce_mean(tf.pow(target - online_pred, 2.0f) / 2.0f); //mean squared error
+			loss = tf.reduce_mean(tf.pow(target - online_pred, 2.0f) / 2.0f) + regularization_param * online_reg; //mean squared error with L2 regularization
 			train_op = optim.minimize(loss, var_list: online_vars.Values.ToList());
 
 			sess = null;
@@ -79,7 +91,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private (Tensor PredOp, Dictionary<string, RefVariable> Trainables) CreateSubgraph(string name)
 		{
 			Tensor pred = null;
-			//Tensor am = null;
 
 			tf_with(tf.variable_scope(name), delegate
 			{
@@ -93,7 +104,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					inputs: hand_reshaped,
 					filters: num_hand_filters,
 					kernel_size: new int[] { 1, GameRep.card_vec_len },
-					strides: new int[] { 1, 1 }
+					strides: new int[] { 1, 1 },
+					kernel_initializer: initializer,
+					bias_initializer: initializer
 					);
 
 				//1d convolution over the pairs of minions
@@ -102,7 +115,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					inputs: minions_reshaped,
 					filters: num_minions_filters,
 					kernel_size: new int[] { 1, minions_input_col },
-					strides: new int[] { 1, 1 }
+					strides: new int[] { 1, 1 },
+					kernel_initializer: initializer,
+					bias_initializer: initializer
 					);
 
 				//RNN over board history
@@ -123,16 +138,18 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				var dense1 = tf.layers.dense(
 					inputs: combined,
 					units: 10,
-					name: "last_layer"
+					name: "last_layer",
+					kernel_initializer: initializer,
+					bias_initializer: initializer
 					);
 
 				pred = tf.layers.dense(
 					inputs: dense1,
 					units: 1,
-					name: "prediction"
+					name: "prediction",
+					kernel_initializer: initializer,
+					bias_initializer: initializer
 					);
-
-				//am = tf.argmax(pred, name: "argmax");
 			});
 
 			var trainable_vars = tf.get_collection<RefVariable>(tf.GraphKeys.TRAINABLE_VARIABLES);
@@ -163,14 +180,18 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return result.flat;
 		}
 
-		public void TrainStep(GameRep[] training_points, NDArray targets)
+		public float TrainStep(GameRep[] training_points, NDArray targets)
 		{
 			mutex.WaitOne();
 
 			var input = UnwrapReps(training_points);
-			sess.run(train_op, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn), new FeedItem(target, targets));
+			FeedItem[] items = new FeedItem[4] { new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn), new FeedItem(target, targets) };
+			sess.run(train_op, items);
+			float l = loss.eval(sess, items).GetValue<float>(0);
 
 			mutex.ReleaseMutex();
+
+			return l;
 		}
 
 		public void CopyOnlineToTarget()

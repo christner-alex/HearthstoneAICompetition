@@ -26,34 +26,34 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public Scorer(GameEvalDQN network = null, float gamma = 0.99f, float win_score = 100f, float loss_score = -100f)
 		{
 			friendly_diff_weights = np.array(
-				0.05f, //player_health
+				0.01f, //player_health
 				0f, //player_base_mana
 				0f, //player_remaining_mana
 				0.1f, //player_hand_size
 				0.3f, //player_board_size
 				0.01f, //player_deck_size
 				0.2f, //player_secret_size
-				0.1f, //player_total_atk
-				0.1f, //player_total_health
-				0.1f, //player taunt_health
-				0.2f, //player_weapon_atk
-				0.2f, //player_weapon_dur
+				0.05f, //player_total_atk
+				0.05f, //player_total_health
+				0.05f, //player taunt_health
+				0.1f, //player_weapon_atk
+				0.1f, //player_weapon_dur
 				0f //game turn
 			);
 
 			enemy_diff_weights = np.array(
-				-0.05f, //player_health
+				-0.01f, //player_health
 				0f, //player_base_mana
 				0f, //player_remaining_mana
 				-0.1f, //player_hand_size
 				-0.3f, //player_board_size
 				-0.01f, //player_deck_size
 				-0.2f, //player_secret_size
-				-0.1f, //player_total_atk
-				-0.1f, //player_total_health
-				-0.1f, //player taunt_health
-				-0.2f, //player_weapon_atk
-				-0.2f, //player_weapon_dur
+				-0.05f, //player_total_atk
+				-0.05f, //player_total_health
+				-0.05f, //player taunt_health
+				-0.1f, //player_weapon_atk
+				-0.1f, //player_weapon_dur
 				0f //game turn
 			);
 

@@ -52,7 +52,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			rnd = new Random();
 		}
 
-		public void Finish()
+		public void Close()
 		{
 			conn.Close();
 			mutex.Close();

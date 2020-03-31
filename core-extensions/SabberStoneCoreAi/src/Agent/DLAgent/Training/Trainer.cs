@@ -52,7 +52,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private bool stop;
 
 		private const string EXCEPTION_LOG_FILENAME = "exception_log.txt";
-		private const string TESTING_LOG_FILENAME = "testing_log.txt";
+		private const string BENCHMARK_LOG_FILENAME = "benchmark_log.txt";
+		private const string TRAINING_LOG_FILENAME = "training_log.txt";
 		private Mutex logMutex;
 
 		public Trainer()
@@ -153,6 +154,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					Console.WriteLine("Iteration {0}", it);
 					Console.WriteLine("Playing Games");
 
+					//stop if the io thread is done
 					if (stop) break;
 
 					//launch threads to play training games
@@ -169,9 +171,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 						t.Join();
 					}
 
-					//stop if the io thread is done
-					if (stop) break;
-
 					//if warmup has not been completed, play more training games
 					if (it < warmupLoops)
 					{
@@ -182,7 +181,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					if(it % trainItr == 0)
 					{
 						Console.WriteLine("Training Network");
-						TrainNetwork();
+						TrainNetwork(it);
 					}
 
 					//at regular intervals, copy the ops
@@ -204,7 +203,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					{
 						Console.WriteLine("Testing against other bots");
 						logMutex.WaitOne();
-						using (StreamWriter w = File.AppendText(TESTING_LOG_FILENAME))
+						using (StreamWriter w = File.AppendText(BENCHMARK_LOG_FILENAME))
 						{
 							w.WriteLine();
 							w.WriteLine("====================================================");
@@ -243,7 +242,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				network.SaveModel(it);
 				network.EndSession();
-				replayMemory.Finish();
+				replayMemory.Close();
 			}
 		}
 
@@ -300,7 +299,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 		}
 
-		private void TrainNetwork()
+		private void TrainNetwork(int it)
 		{
 			Scorer scorer = new Scorer(network);
 
@@ -316,7 +315,18 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				GameRep[] actions = (from t in transitions select t.action).ToArray();
 
 				//train the network
-				network.TrainStep(actions, targets);
+				float loss = network.TrainStep(actions, targets);
+
+				string output = $"Iteration {it}, Batch {l+1}: Loss = {loss}";
+				Console.WriteLine(output);
+
+				logMutex.WaitOne();
+				using (StreamWriter w = File.AppendText(TRAINING_LOG_FILENAME))
+				{
+					w.WriteLine(output);
+					w.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
+				}
+				logMutex.ReleaseMutex();
 			}
 		}
 
@@ -343,17 +353,19 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 						}
 					}
 
-					//calc winrate
-					if (games > 0) winrate = wins / games;
-
-					string result = $"{p.playerName} vs {p.opponentName}: Winrate={winrate}%";
-					Console.WriteLine(result);
-					logMutex.WaitOne();
-					using (StreamWriter w = File.AppendText(TESTING_LOG_FILENAME))
+					if (games > 0)
 					{
-						w.WriteLine(result);
+						winrate = wins / games;
+
+						string result = $"{p.playerName} vs {p.opponentName}: Winrate={winrate}%";
+						Console.WriteLine(result);
+						logMutex.WaitOne();
+						using (StreamWriter w = File.AppendText(BENCHMARK_LOG_FILENAME))
+						{
+							w.WriteLine(result);
+						}
+						logMutex.ReleaseMutex();
 					}
-					logMutex.ReleaseMutex();
 				}
 				catch (Exception ex)
 				{
