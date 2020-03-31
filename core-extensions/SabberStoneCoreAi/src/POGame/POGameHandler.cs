@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using SabberStoneCore.Config;
 using SabberStoneCore.Enums;

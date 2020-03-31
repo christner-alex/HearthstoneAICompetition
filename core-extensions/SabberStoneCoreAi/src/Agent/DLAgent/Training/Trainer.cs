@@ -27,22 +27,20 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private ReplayMemoryDB replayMemory;
 
-		private const int numTrainThreads = 5;
-		private const int gamesPerTrainThread = 1;
+		private const int numDataThreads = 5;
 
 		private const int trainItr = 1;
 		private const int saveItr = 5;
 		private const int copyItr = 25;
 		private const int testItr = 50;
-		private const int warmupLoops = 100;
 
 		private const int batchSize = 50;
 		private const int numTrainLoops = 10;
 
 		private const float max_eps = 0.5f;
 		private const float min_eps = 0.01f;
-		private const float epsDecayStartStep = 500;
-		private const int epsDecaySteps = 10000;
+		private const float epsDecayStartStep = 0;
+		private const int epsDecaySteps = 1000;
 		private float currentEps = 0.5f;
 
 		private const int numTestGamesPerBot = 20;
@@ -120,12 +118,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 		}
 
-		public void RunTrainingLoop(int startIter, int stopItr = int.MaxValue)
+		/// <summary>
+		/// Initialize the Network and the ReplayMemory
+		/// </summary>
+		/// <param name="load">If true, the network and the replay memory will be loaded from previous iterations. If false, they will be initialized from scratch.</param>
+		private void InitializeObjects(bool load)
 		{
 			network.StartSession();
-			int it = Math.Max(0, startIter);
 
-			if (it == 0)
+			if (!load)
 			{
 				//if starting from scratch, initialize the model randomly
 				network.Initialize();
@@ -138,11 +139,69 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//reload the replay buffer
 				replayMemory.Initialize();
 			}
+		}
+
+		/// <summary>
+		/// Save the model, end the network session, and close the replay memory
+		/// </summary>
+		/// <param name="it">The iteration checkpoint to save the model as</param>
+		private void Finalize(int it)
+		{
+			network.SaveModel(it);
+			network.EndSession();
+			replayMemory.Close();
+		}
+
+		/// <summary>
+		/// Populate the replay buffer with numGames games
+		/// </summary>
+		/// <param name="numGames">The number of games to play and add to the replay buffer</param>
+		/// <param name="load">Whether to load a previously saved model and replay buffer</param>
+		public void Warmup(int numGames, bool load)
+		{
+			InitializeObjects(load);
+			try
+			{
+				Thread StopThread = new Thread(StopIO);
+				StopThread.Start();
+
+				Thread[] threads = new Thread[numDataThreads];
+				int numGamesPerThread = (int)(numGames / numDataThreads);
+				for (int i = 0; i < numDataThreads; i++)
+				{
+					threads[i] = new Thread(LoopTrainingGames);
+					threads[i].Start(numGamesPerThread);
+				}
+
+				//wait for each training thread to join
+				foreach (Thread t in threads)
+				{
+					t.Join();
+				}
+			}
+			catch(Exception ex)
+			{
+				Console.WriteLine("Trainer Error");
+				LogException(ex);
+			}
+			finally
+			{
+				Finalize(0);
+			}
+		}
+
+		public void RunTrainingLoop(int startIter, int stopItr = int.MaxValue)
+		{
+			int it = Math.Max(1, startIter);
+
+			//initialize the objects, making sure to load a model and replay memory
+			//already created from warmups
+			InitializeObjects(true);
 
 			try
 			{
-				Thread Stop = new Thread(StopIO);
-				Stop.Start();
+				Thread StopThread = new Thread(StopIO);
+				StopThread.Start();
 
 				while (it < stopItr)
 				{
@@ -152,29 +211,23 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					//play training games
 					Console.WriteLine("============================");
 					Console.WriteLine("Iteration {0}", it);
-					Console.WriteLine("Playing Games");
+					Console.WriteLine("Playing Training Games");
 
 					//stop if the io thread is done
 					if (stop) break;
 
 					//launch threads to play training games
-					Thread[] threads = new Thread[numTrainThreads];
-					for (int i = 0; i < numTrainThreads; i++)
+					Thread[] threads = new Thread[numDataThreads];
+					for (int i = 0; i < numDataThreads; i++)
 					{
 						threads[i] = new Thread(LoopTrainingGames);
-						threads[i].Start();
+						threads[i].Start(1);
 					}
 
 					//wait for each training thread to join
 					foreach (Thread t in threads)
 					{
 						t.Join();
-					}
-
-					//if warmup has not been completed, play more training games
-					if (it < warmupLoops)
-					{
-						continue;
 					}
 
 					//run update
@@ -239,10 +292,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			finally
 			{
 				Console.WriteLine("Final Iteration: {0}", it);
-
-				network.SaveModel(it);
-				network.EndSession();
-				replayMemory.Close();
+				Finalize(it);
 			}
 		}
 
@@ -271,9 +321,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				GameStats gameStats = PlayGame(agent1, agent2, gameConfig);
 
-				//discard drawn games
-				if(gameStats.PlayerA_Wins == gameStats.PlayerB_Wins)
+				//discard drawn games or games with exceptions
+				if(gameStats.PlayerA_Wins == gameStats.PlayerB_Wins || gameStats.PlayerA_Exceptions > 0 || gameStats.PlayerB_Exceptions > 0)
 				{
+					Console.WriteLine("Discarding game due to exception");
 					return;
 				}
 
@@ -291,11 +342,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		}
 
-		private void LoopTrainingGames()
+		private void LoopTrainingGames(object gamesPerTrainThread)
 		{
-			for(int i=0; i<gamesPerTrainThread; i++)
+			for(int i=0; i<(int)gamesPerTrainThread; i++)
 			{
 				TrainingGame();
+
+				if (stop) return;
 			}
 		}
 
@@ -346,7 +399,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					for (int g = 0; g < numTestGamesPerBot; g++)
 					{
 						GameStats gameStats = PlayGame(new DLAgent(new Scorer(network)), p.opponent(), p.gameConfig);
-						if (gameStats != null)
+						if (gameStats != null && gameStats.PlayerA_Exceptions == 0 && gameStats.PlayerB_Exceptions == 0)
 						{
 							games++;
 							if (gameStats.PlayerA_Wins > 0) wins++;

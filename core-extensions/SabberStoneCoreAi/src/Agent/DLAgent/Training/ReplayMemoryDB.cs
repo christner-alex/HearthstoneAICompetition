@@ -71,6 +71,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 			rdr.Close();
 
+			Console.WriteLine("Initialized current_id to {0}", current_id);
+
 			mutex.ReleaseMutex();
 		}
 

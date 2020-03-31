@@ -25,6 +25,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Npgsql;
+using System.IO;
 
 namespace SabberStoneCoreAi
 {
@@ -34,7 +35,10 @@ namespace SabberStoneCoreAi
 		private static void Main()
 		{
 			Trainer trainer = new Trainer();
-			trainer.RunTrainingLoop(0,3);
+			//trainer.Warmup(10, false);
+			//trainer.Warmup(10, true);
+			trainer.Warmup(100, true);
+			//trainer.RunTrainingLoop(1,3);
 
 			Console.ReadLine();
 		}

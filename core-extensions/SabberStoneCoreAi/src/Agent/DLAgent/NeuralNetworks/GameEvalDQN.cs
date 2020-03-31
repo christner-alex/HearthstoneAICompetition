@@ -74,7 +74,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			copy_ops = tf.group(cops.ToArray());
 
 			online_reg_terms = (from v in online_vars select tf.reduce_sum(tf.square(v.Value))).ToArray(); // squared sum of the variable
-			online_reg = tf.add_n(online_reg_terms);
+			online_reg = online_reg_terms.Aggregate((x, y) => x + y);
 
 			optim = tf.train.AdamOptimizer(0.01f);
 			loss = tf.reduce_mean(tf.pow(target - online_pred, 2.0f) / 2.0f) + regularization_param * online_reg; //mean squared error with L2 regularization
@@ -217,6 +217,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			mutex.WaitOne();
 
 			saver.restore(sess, tf.train.latest_checkpoint("GameEvalDQN"));
+			Console.WriteLine("Loaded model");
 
 			mutex.ReleaseMutex();
 		}

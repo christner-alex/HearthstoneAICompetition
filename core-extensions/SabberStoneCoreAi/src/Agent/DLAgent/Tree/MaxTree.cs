@@ -63,7 +63,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// A list of nodes to be searched in the FillDeterministicTree function.
 		/// </summary>
-		private List<DeterministicNode> expansion_list;
+		private Stack<DeterministicNode> expansion_list;
 
 		/// <summary>
 		/// The number of times to simulate a State Action pair to determine whether it is Deterministic or Stochastic.
@@ -100,8 +100,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			DeterministicNodes.Add(Root.StateRep, Root);
 			ChanceNodes = new List<ChanceNode>();
 
-			expansion_list = new List<DeterministicNode>();
-			expansion_list.Add(Root);
+			expansion_list = new Stack<DeterministicNode>();
+			expansion_list.Push(Root);
 
 			taskqueue = new Queue<Node>();
 			taskTerminal = null;
@@ -195,13 +195,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			do
 			{
 				//expand the deterministic tree for up to half the remiaining time
-				FillDeterministicTree(remaining / 2);
+				FillDeterministicTree(remaining / 4);
 
 				//get the remaining time
 				remaining -= (float)watch.Elapsed.TotalSeconds;
 				watch.Restart();
 
-				float time_per_node = Math.Max(0.5f * remaining / (ChanceNodes.Count + 1), 1);
+				float time_per_node = Math.Max(0.25f * remaining / (ChanceNodes.Count + 1), 1f);
 				//time_per_node = Math.Max(time_per_node, (time_per_node + fill_time) / 2);
 				 while (!FoundLethal //break if there is a lethal node (no need to search furnther)
 					&& ChanceNodes.Count > 0 //or there are no chance nodes (nothing to search)
@@ -266,9 +266,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				&& !FoundLethal) //and we haven't found a lethal node
 			{
 				//select an unexpanded node
-				int index = rnd.Next(0, expansion_list.Count);
-				DeterministicNode current = expansion_list[index];
-				expansion_list.RemoveAt(index);
+				DeterministicNode current = expansion_list.Pop();
 
 				//find all the successor states of the current node, except for those that already exist in 
 				(Dictionary<GameRep, DeterministicNode>, List<ChanceNode>, DeterministicNode) new_nodes = current.FindChildren();
@@ -282,7 +280,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					//if it isn't an endturn or loss node, add it to the stack
 					if(!n.Value.IsLoss && !n.Value.IsLethal)
 					{
-						expansion_list.Add(n.Value);
+						expansion_list.Push(n.Value);
 					}
 				}
 

@@ -4,7 +4,6 @@ using SabberStoneCore.Model;
 using SabberStoneCore.Tasks.PlayerTasks;
 using SabberStoneCoreAi.Agent;
 using SabberStoneCoreAi.Meta;
-using SabberStoneCore.Tasks.PlayerTasks;
 
 
 namespace SabberStoneCoreAi.Tyche2

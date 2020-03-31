@@ -96,6 +96,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) / 2.0f;
 				tree.Run(t);
 
+				//save the first tree creates as the root tree
 				if (root_tree == null) root_tree = tree;
 
 				//if the tree found lethal, overwrite doing epsilon moves
