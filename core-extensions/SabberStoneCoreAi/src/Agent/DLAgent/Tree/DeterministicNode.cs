@@ -48,7 +48,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// Whether this node is a loss state: one where the player has lost.
 		/// </summary>
-		public bool IsLoss => (State.CurrentOpponent != State.CurrentPlayer) && (State.CurrentPlayer.Hero.Health <= 0);
+		public bool IsLoss => (State.CurrentPlayer.Hero.Health <= 0);
 
 		/// <summary>
 		/// Finds and stores all the states that result from taking an action from this node's state,

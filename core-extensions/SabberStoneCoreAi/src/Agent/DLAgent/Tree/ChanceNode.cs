@@ -48,7 +48,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			{
 				//simulate the result of this node's action
 				Dictionary<PlayerTask, POGame.POGame> result = Predecessor.State.Simulate(new List<PlayerTask> { Action });
+
 				if (result[Action] == null) continue;
+
 				GameRep k = new GameRep(result[Action], Tree.Agent.Record);
 
 				//if the resulting state has already been seen,
@@ -69,6 +71,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					weights.Add(k, 1);
 				}
 
+				//fill the new or continue to fill the old maxtree
 				ChildrenTrees[k].FillDeterministicTree(runtime / loops);
 			}
 

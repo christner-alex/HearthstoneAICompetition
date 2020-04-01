@@ -36,7 +36,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// The maximum number of tuples to keep in the database
 		/// </summary>
-		private const int replayMemorySize = 50000;
+		private const int replayMemorySize = 10000;
 
 		private Mutex mutex;
 		

@@ -274,8 +274,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//for each newly discovered deterministic node that is a successor to the current node...
 				foreach (KeyValuePair<GameRep, DeterministicNode> n in new_nodes.Item1)
 				{
-					//add it to the deterministic nodes of this tree
-					DeterministicNodes.Add(n.Key.Copy(), n.Value);
+					//add it to the deterministic nodes of this tree if it isnt a loss
+					if(!n.Value.IsLoss)
+					{
+						DeterministicNodes.Add(n.Key.Copy(), n.Value);
+					}
 
 					//if it isn't an endturn or loss node, add it to the stack
 					if(!n.Value.IsLoss && !n.Value.IsLethal)

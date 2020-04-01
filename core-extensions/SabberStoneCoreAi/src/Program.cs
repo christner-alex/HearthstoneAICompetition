@@ -37,7 +37,7 @@ namespace SabberStoneCoreAi
 			Trainer trainer = new Trainer();
 			//trainer.Warmup(10, false);
 			//trainer.Warmup(10, true);
-			trainer.Warmup(100, true);
+			trainer.Warmup(500, true);
 			//trainer.RunTrainingLoop(1,3);
 
 			Console.ReadLine();

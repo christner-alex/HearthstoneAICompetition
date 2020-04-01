@@ -23,7 +23,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public GameEvalDQN Network { get; }
 
-		public Scorer(GameEvalDQN network = null, float gamma = 0.99f, float win_score = 100f, float loss_score = -100f)
+		public Scorer(GameEvalDQN network = null, float gamma = 0.99f, float win_score = 200f, float loss_score = -200f)
 		{
 			friendly_diff_weights = np.array(
 				0.01f, //player_health
@@ -121,7 +121,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				+ enemy_difference.dot(enemy_diff_weights)
 				+ friendly_end_board.dot(friendly_end_weights)
 				+ enemy_end_board.dot(enemy_end_weights);
-			return result.astype(NPTypeCode.Float).ToArray<float>()[0];
+			return result.astype(NPTypeCode.Float).GetValue<float>(0);
 		}
 
 		public NDArray TurnReward(GameRep[] start_states, GameRep[] end_states)
@@ -168,7 +168,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public NDArray Q(GameRep[] start_states, GameRep[] end_states, bool use_online)
 		{
-			NDArray turn = TurnReward(start_states, start_states);
+			NDArray turn = TurnReward(start_states, end_states);
 			NDArray future = FutureRewardEstimate(end_states, use_online);
 			return np.add(turn, future);
 		}
@@ -200,7 +200,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public NDArray CreateTargets(params GameRecord.TransitionRecord[] transitions)
 		{
 			//target = r + lambda * max_a' Q(s', a')
-			var l = from t in transitions select t.reward + Gamma * (t.successor_actions?.DoubleQScore(this) ?? 0);
+			var l = from t in transitions select t.reward==WinScore || t.reward==LossScore ? t.reward : t.reward + Gamma * (t.successor_actions?.DoubleQScore(this) ?? 0);
 			return np.array(l.ToArray());
 		}
 

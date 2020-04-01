@@ -22,7 +22,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private MaxTree tree;
 		private MaxTree root_tree;
 
-		private float move_seconds = 60.0f;
+		private const float move_seconds = 75.0f;
 		private Stopwatch turn_watch;
 
 		private Random rnd;
@@ -93,7 +93,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				tree = tree ?? new MaxTree(poGame, agent: this);
 
 				//run the tree for up to half of the remaining turn time
-				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) / 2.0f;
+				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) * 2f / 3f;
 				tree.Run(t);
 
 				//save the first tree creates as the root tree

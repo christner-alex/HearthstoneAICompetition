@@ -35,11 +35,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private const int testItr = 50;
 
 		private const int batchSize = 50;
-		private const int numTrainLoops = 10;
+		private const int numTrainLoops = 5;
 
 		private const float max_eps = 0.5f;
 		private const float min_eps = 0.01f;
-		private const float epsDecayStartStep = 0;
 		private const int epsDecaySteps = 1000;
 		private float currentEps = 0.5f;
 
@@ -160,6 +159,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public void Warmup(int numGames, bool load)
 		{
 			InitializeObjects(load);
+
+			network.CopyOnlineToTarget(); //temporary
+
 			try
 			{
 				Thread StopThread = new Thread(StopIO);
@@ -167,6 +169,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				Thread[] threads = new Thread[numDataThreads];
 				int numGamesPerThread = (int)(numGames / numDataThreads);
+				if(numGamesPerThread<=0)
+				{
+					throw new ArgumentException();
+				}
+
 				for (int i = 0; i < numDataThreads; i++)
 				{
 					threads[i] = new Thread(LoopTrainingGames);
@@ -206,7 +213,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				while (it < stopItr)
 				{
 					//update the epsilon exploration parameter
-					currentEps = it < epsDecayStartStep ? max_eps : Math.Max(min_eps, max_eps - (max_eps - min_eps) * (it - epsDecayStartStep) / epsDecaySteps);
+					currentEps = Math.Max(min_eps, max_eps - (max_eps - min_eps) * it / epsDecaySteps);
 
 					//play training games
 					Console.WriteLine("============================");
@@ -299,8 +306,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public GameStats PlayGame(AbstractAgent player1, AbstractAgent player2, GameConfig gameConfig)
 		{
 			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
-			gameHandler.PlayGame();
-			return gameHandler.getGameStats();
+			bool valid = gameHandler.PlayGame();
+			return valid ? gameHandler.getGameStats() : null;
 		}
 
 		private void TrainingGame()
@@ -322,15 +329,15 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				GameStats gameStats = PlayGame(agent1, agent2, gameConfig);
 
 				//discard drawn games or games with exceptions
-				if(gameStats.PlayerA_Wins == gameStats.PlayerB_Wins || gameStats.PlayerA_Exceptions > 0 || gameStats.PlayerB_Exceptions > 0)
+				if(gameStats == null || gameStats.PlayerA_Wins == gameStats.PlayerB_Wins || gameStats.PlayerA_Exceptions > 0 || gameStats.PlayerB_Exceptions > 0)
 				{
-					Console.WriteLine("Discarding game due to exception");
+					Console.WriteLine("Discarding game");
 					return;
 				}
 
 				//save the transitions
-				List<GameRecord.TransitionRecord> p1Records = agent1.Record.ConstructTransitions(agent1.scorer, gameStats.PlayerA_Wins > 0);
-				List<GameRecord.TransitionRecord> p2Records = agent2.Record.ConstructTransitions(agent2.scorer, gameStats.PlayerB_Wins > 0);
+				List<GameRecord.TransitionRecord> p1Records = agent1.Record.ConstructTransitions(agent1.scorer, gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
+				List<GameRecord.TransitionRecord> p2Records = agent2.Record.ConstructTransitions(agent2.scorer, gameStats.PlayerB_Wins > gameStats.PlayerA_Wins);
 				replayMemory.Push(p1Records);
 				replayMemory.Push(p2Records);
 			}
@@ -410,7 +417,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					{
 						winrate = wins / games;
 
-						string result = $"{p.playerName} vs {p.opponentName}: Winrate={winrate}%";
+						string result = $"{p.playerName} vs {p.opponentName}: Winrate={winrate}%, {wins}/{games}";
 						Console.WriteLine(result);
 						logMutex.WaitOne();
 						using (StreamWriter w = File.AppendText(BENCHMARK_LOG_FILENAME))
