@@ -199,6 +199,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			mutex.WaitOne();
 
 			sess.run(copy_ops);
+			Console.WriteLine("Copied"); //temporary
 
 			mutex.ReleaseMutex();
 		}

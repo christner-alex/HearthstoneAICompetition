@@ -179,6 +179,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return Q(start_states, end_states, use_online);
 		}
 
+		public float TurnDecay(int turn)
+		{
+			return -0.5f * turn;
+		}
+
 		/// <summary>
 		/// Calculate the score observed from a (state,action,state) transistion, which is the difference between
 		/// the reward gained by the current player on their turn and the opposite of the reward gained by the

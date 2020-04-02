@@ -72,7 +72,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 
 				//fill the new or continue to fill the old maxtree
-				ChildrenTrees[k].FillDeterministicTree(runtime / loops);
+				ChildrenTrees[k].FillDeterministicTree(runtime);
 			}
 
 			CheckRep();
@@ -109,7 +109,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			if (ChildrenTrees.Count == 0)
 			{
-				return 0;
+				return Tree.Agent.scorer.TurnDecay(Tree.Agent.StartTurnState.Turn);
 			}
 
 			float numerator = 0;

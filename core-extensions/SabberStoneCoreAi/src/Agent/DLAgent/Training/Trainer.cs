@@ -27,7 +27,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private ReplayMemoryDB replayMemory;
 
-		private const int numDataThreads = 5;
+		private const int numDataThreads = 1;
 
 		private const int trainItr = 1;
 		private const int saveItr = 5;
@@ -43,7 +43,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private float currentEps = 0.5f;
 
 		private const int numTestGamesPerBot = 20;
-		private const int numTestThreads = 5;
+		private const int numTestThreads = 1;
 		private List<TestingParams> testingParams;
 
 		private bool stop;
@@ -184,6 +184,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				foreach (Thread t in threads)
 				{
 					t.Join();
+					Console.WriteLine("Thread Joined");
 				}
 			}
 			catch(Exception ex)
@@ -351,11 +352,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private void LoopTrainingGames(object gamesPerTrainThread)
 		{
-			for(int i=0; i<(int)gamesPerTrainThread; i++)
+			Console.WriteLine($"{(int)gamesPerTrainThread} GameStats per thread");
+			for (int i=0; i<(int)gamesPerTrainThread; i++)
 			{
 				TrainingGame();
+				Console.WriteLine("Finished Game");
 
-				if (stop) return;
+				if (stop) break;
 			}
 		}
 

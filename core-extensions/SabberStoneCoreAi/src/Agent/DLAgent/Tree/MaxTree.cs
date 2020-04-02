@@ -28,6 +28,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// </summary>
 		private List<MaxTree> chance_subtrees;
 
+
 		/// <summary>
 		/// A queue of nodes that should be followed according to the tree.
 		/// </summary>
@@ -148,6 +149,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			PlayerTask result = null;
 			GameRep input_rep = new GameRep(poGame,Agent.Record);
 
+			//if there are no more nodes in the taskqueue
 			//if the poGame state is the same as the terminal node's...
 			if(taskTerminal != null && taskqueue.Count == 0
 				&& taskTerminal.GetType() == typeof(DeterministicNode)
@@ -156,6 +158,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//the return the end turn action
 				result = EndTurnTask.Any(poGame.CurrentPlayer);
 			}
+			//if there are still nodes in the taskqueue,
+			//and the input prGame matches the predecessor of the next move,
+			//and that move is a valid one,
+			//return it
 			else if (poGame != null && taskqueue.Count != 0)
 			{
 				GameRep n_rep = taskqueue.Peek().Predecessor.StateRep;
@@ -187,25 +193,34 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			float remaining = runtime;
 
-			int chance_expansions = 0;
+			int chance_expansions = chance_subtrees.Count;
+			int last_subtree_count;
 
 			Stopwatch watch = new Stopwatch();
 			watch.Start();
 
 			do
 			{
+				last_subtree_count = chance_subtrees.Count;
+
 				//expand the deterministic tree for up to half the remiaining time
-				FillDeterministicTree(remaining / 4);
+				float time_for_det = Math.Max(remaining / 4, 1f);
+				FillDeterministicTree(time_for_det);
 
 				//get the remaining time
 				remaining -= (float)watch.Elapsed.TotalSeconds;
 				watch.Restart();
 
-				float time_per_node = Math.Max(0.25f * remaining / (ChanceNodes.Count + 1), 1f);
+				//allocate time for the entire fill chance loop,
+				//all if there are no more det nodes to expand, otherwise a 4th of the remaining time
+				float time_for_chance = expansion_list.Count > 0 ? remaining / 4 : (remaining >= 1f ? remaining : 0f);
+				//split the time spent on each chance node
+				float time_per_node = Math.Max(time_for_chance / (ChanceNodes.Count + 1), 1f);
+
 				//time_per_node = Math.Max(time_per_node, (time_per_node + fill_time) / 2);
-				 while (!FoundLethal //break if there is a lethal node (no need to search furnther)
+				while (!FoundLethal //break if there is a lethal node (no need to search furnther)
 					&& ChanceNodes.Count > 0 //or there are no chance nodes (nothing to search)
-					&& watch.Elapsed.TotalSeconds < remaining //or if we are out of time
+					&& watch.Elapsed.TotalSeconds < time_for_chance //or if we are out of time
 					//or there are far more expansions than there are trees (no new info being created)
 					&& chance_expansions < chance_subtrees.Count * Math.Log(chance_subtrees.Count+1) + ChanceNodes.Count
 					&& chance_subtrees.Count < 10 * ChanceNodes.Count //or there are far more subtrees than chance nodes
@@ -219,8 +234,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				remaining -= (float)watch.Elapsed.TotalSeconds;
 				watch.Restart();
 
-			} while (!FoundLethal && remaining > 0f && expansion_list.Count > 0);
-			//continue looping while lethal hasn't been found, there is still time left, and there are deterministic nodes left to expand
+			} while (!FoundLethal && remaining > 0f && (expansion_list.Count > 0 || last_subtree_count != chance_subtrees.Count));
+			//continue looping while lethal hasn't been found, there is still time left, and wither there are deterministic nodes left to expand or no new chance trees were created
 
 			watch.Stop();
 
@@ -374,10 +389,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				(float, Node) n = GetScore();
 				current = n.Item2;
 			}
-			
+
+			//if there is no nodes except Root
 			if(current == null)
 			{
-				taskTerminal = Root;
+				taskTerminal = null;
+				taskqueue.Clear();
 				return;
 			}
 
