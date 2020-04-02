@@ -6,6 +6,7 @@ using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
 using NumSharp;
 using Newtonsoft.Json;
 using System.IO;
+using static SabberStoneCoreAi.Agent.DLAgent.GameSearchTree;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -17,18 +18,18 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			public GameRep action;
 			public float reward;
 			public GameRep successor;
-			public SparseTree successor_actions;
+			public SavableTree successor_actions;
 		}
 
 		private List<GameRep> States;
 		private List<GameRep> Actions;
-		private List<SparseTree> SuccessorTrees;
+		private List<SavableTree> SuccessorTrees;
 
 		public GameRecord()
 		{
 			States = new List<GameRep>();
 			Actions = new List<GameRep>();
-			SuccessorTrees = new List<SparseTree>();
+			SuccessorTrees = new List<SavableTree>();
 		}
 
 		public bool PushState(GameRep state)
@@ -49,7 +50,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return PushState(new GameRep(game, this));
 		}
 
-		public bool PushAction(GameRep action, SparseTree stree)
+		public bool PushAction(GameRep action, SavableTree stree)
 		{
 			//an action should only be added when there is a
 			//state without an accompanying action
@@ -64,9 +65,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return false;
 		}
 
-		public bool PushAction(POGame.POGame game, MaxTree mtree)
+		public bool PushAction(POGame.POGame game, GameSearchTree stree)
 		{
-			return PushAction(new GameRep(game, this), mtree.CreateSparseTree());
+			return PushAction(new GameRep(game, this), stree.CreateSavable());
 		}
 
 		public List<TransitionRecord> ConstructTransitions(Scorer scorer, bool won)

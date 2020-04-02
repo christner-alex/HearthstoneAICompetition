@@ -9,7 +9,6 @@ using SabberStoneCore.Model;
 using System.Linq;
 using System.Diagnostics;
 using SabberStoneCore.Model.Entities;
-using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
 using System.IO;
 using Newtonsoft.Json;
 
@@ -19,8 +18,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 	{
 		public Scorer scorer;
 
-		private MaxTree tree;
-		private MaxTree root_tree;
+		private GameSearchTree tree;
+		private GameSearchTree root_tree;
 
 		private const float move_seconds = 75.0f;
 		private Stopwatch turn_watch;
@@ -79,7 +78,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			while (!do_random)
 			{
 				//if the tree exists, get the next move it says to do
-				move = tree?.GetNextMove(poGame);
+				move = tree?.NextMove(poGame);
 
 				//if a move has been found or we are out of time, break out of the loop
 				if (move != null || turn_watch.Elapsed.TotalSeconds > move_seconds)
@@ -87,10 +86,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					break;
 				}
 
-				//if a subtree exploring the given state already exists, take it
-				tree = tree?.FindSubtree(poGame);
-				//otherwise, create a new tree with the given state as the root
-				tree = tree ?? new MaxTree(poGame, agent: this);
+				//create a new tree with the current state as the root
+				tree = new GameSearchTree(poGame, this);
 
 				//run the tree for up to half of the remaining turn time
 				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) * 2f / 3f;
