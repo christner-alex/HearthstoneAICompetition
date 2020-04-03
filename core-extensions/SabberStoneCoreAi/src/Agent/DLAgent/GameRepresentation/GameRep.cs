@@ -34,8 +34,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 
 		public const int minion_vec_len = 14;
-		public const int card_vec_len = 7;
-		public const int board_vec_len = 13;
+		public const int card_vec_len = 13;
+		public const int board_vec_len = 16;
 
 		public const int max_minions = 14;
 		public const int max_side_minions = 7;
@@ -164,11 +164,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				player.BoardZone.Count, //player_board_size
 				player.DeckZone.Count, //player_deck_size
 				player.SecretZone.Count, //player_secret_size
+				player.GraveyardZone.Count, //graveyard size
 				player.BoardZone.Sum(p => p.AttackDamage), //player_total_atk
 				player.BoardZone.Sum(p => p.Health), //player_total_health
 				player.BoardZone.Where(p => p.HasTaunt).Sum(p => p.Health), //player taunt_health
-				player.Hero.Weapon != null ? player.Hero.Weapon.AttackDamage : 0, //player_weapon_atk
-				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0, //player_weapon_dur
+				player.Hero.TotalAttackDamage, //hero attack damage
+				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0, //hero weapon durability
+				player.HeroPowerActivationsThisTurn,  //hero power activations
+				player.HandZone.Sum(p => p.Cost), //hand cost
 				player.Game.Turn // player turn
 			);
 		}
@@ -226,53 +229,83 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				return result;
 			}
 
-			/*
-			// Get the first three numbers in the text
-			string text = card.Text.ToLower();
-			string[] numbers = Regex.Split(text, @"\D+");
-			NDArray nums = np.zeros(new Shape(3), NPTypeCode.Int32);
-			for(int i=0; i<numbers.Length && i<3; i++)
-			{
-				if (!string.IsNullOrEmpty(numbers[i]))
-				{
-					nums[i] = int.Parse(numbers[i]);
-				}
-			}
-			*/
+			int cost = 0;
+			int atk = 0;
+			int def = 0;
 
-			int a = 0;
-			int b = 0;
-			int c = 0;
 			switch (card.Type)
 			{
 				case CardType.MINION:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					card.Tags.TryGetValue(GameTag.ATK, out b);
-					card.Tags.TryGetValue(GameTag.HEALTH, out c);
+					card.Tags.TryGetValue(GameTag.ATK, out atk);
+					card.Tags.TryGetValue(GameTag.HEALTH, out def);
 					result[0] = 1;
 					break;
 				case CardType.SPELL:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					b = 0;
-					c = 0;
 					result[1] = 1;
 					break;
 				case CardType.WEAPON:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					card.Tags.TryGetValue(GameTag.ATK, out b);
-					card.Tags.TryGetValue(GameTag.DURABILITY, out c);
+					card.Tags.TryGetValue(GameTag.ATK, out atk);
+					card.Tags.TryGetValue(GameTag.DURABILITY, out def);
 					result[2] = 1;
 					break;
 				case CardType.HERO:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					b = 0;
-					card.Tags.TryGetValue(GameTag.ARMOR, out c);
+					card.Tags.TryGetValue(GameTag.ARMOR, out def);
 					result[3] = 1;
 					break;
 			}
+			card.Tags.TryGetValue(GameTag.COST, out cost);
 
-			result["4:"] = np.array(a, b, c);
-			//result["7:"] = nums;
+			int draw = 0;
+			int damage = 0;
+			int restore = 0;
+
+			bool start_turn = false;
+			bool end_turn = false;
+			bool whenever = false;
+			bool when = false;
+			bool after = false;
+			bool battlecry = false;
+			bool inspire = false;
+
+			if (card.Text != null)
+			{
+				string text = card.Text.ToLower();
+
+				battlecry = text.Contains("<b>battlecry:</b>");
+				inspire = text.Contains("<b>inspire:</b>");
+				start_turn = text.Contains("at the start");
+				end_turn = text.Contains("at the end");
+				whenever = text.Contains("whenever");
+				when = text.Contains("when") && !whenever;
+				after = text.Contains("after");
+
+				Match draw_match = Regex.Match(text, "draw\\s(a|[1-9])");
+				Match damage_match = Regex.Match(text, "deal\\s[$][1-9]*\\sdamage");
+				Match heal_match = Regex.Match(text, "restore\\s[$][1-9]*\\shealth");
+
+				if (draw_match.Success)
+				{
+					string amount = draw_match.Value.Split(" ")[1];
+					draw = amount.Equals("a") ? 1 : Int32.Parse(Regex.Replace(amount, "[^0-9]", "").Substring(0,1));
+				}
+				if (damage_match.Success)
+				{
+					string amount = damage_match.Value.Split(" ")[1];
+					damage = amount.Equals("a") ? 1 : Int32.Parse(Regex.Replace(amount, "[^0-9]", "").Substring(0, 1));
+				}
+				if(heal_match.Success)
+				{
+					string amount = heal_match.Value.Split(" ")[1];
+					restore = amount.Equals("a") ? 1 : Int32.Parse(Regex.Replace(amount, "[^0-9]", "").Substring(0, 1));
+				}
+			}
+
+			int instant_effect = new bool[] { battlecry, card.Charge, card.Rush, card.ChooseOne }.Count(v => v);
+			int continuous_effect = new bool[] { start_turn, end_turn, whenever, after, inspire }.Count(v => v);
+			int enchantment = new bool[] {card.DivineShield, card.CantBeTargetedBySpells, card.CantBeTargetedByHeroPowers,
+				card.Echo, card.LifeSteal, card.Poisonous, card.Stealth, card.Windfury, card.Deathrattle, card.Combo }.Count(v => v);
+
+			result["4:"] = np.array(cost, atk, def, draw, damage, restore, instant_effect, continuous_effect, enchantment);
 
 			return result;
 		}

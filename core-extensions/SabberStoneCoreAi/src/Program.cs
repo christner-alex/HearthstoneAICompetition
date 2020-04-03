@@ -26,6 +26,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Npgsql;
 using System.IO;
+using SabberStoneCoreAi.Competition.Agents;
+using System.Text.RegularExpressions;
 
 namespace SabberStoneCoreAi
 {
@@ -39,10 +41,71 @@ namespace SabberStoneCoreAi
 			//GameRecord.TransitionRecord[] trans = db.Sample(3);
 			//db.Close();
 
+			List<Card> deck = new List<Card>();
+			deck.Add(Cards.FromName("Arcane Missiles"));
+			deck.Add(Cards.FromName("Stonetusk Boar"));
+			deck.Add(Cards.FromName("Mind Control Tech"));
+			deck.Add(Cards.FromName("Bloodfen Raptor"));
+			deck.Add(Cards.FromName("Loot Hoarder"));
+			deck.Add(Cards.FromName("Arcane Intellect"));
+			deck.Add(Cards.FromName("Fireball"));
 
-			Trainer trainer = new Trainer();
-			//trainer.Warmup(10, false);
-			//trainer.Warmup(10, true);
+			foreach (Card c in deck)
+			{
+				string text = c.Text;
+				if(text!=null)
+				{
+					text = text.ToLower();
+					Console.WriteLine(text);
+					Match draw_match = Regex.Match(text, "draw\\s(a|[1-9])\\scard");
+					Match damage_match = Regex.Match(text, "deal\\s[$][1-9]*\\sdamage");
+					if (draw_match.Success)
+					{
+						string amount = draw_match.Value.Split(" ")[1];
+						int draw_amount = amount.Equals("a") ? 1 : Int32.Parse(amount);
+						Console.WriteLine(draw_amount);
+					}
+					if (damage_match.Success)
+					{
+						Console.WriteLine(Int32.Parse(damage_match.Value.Split(" ")[1].Remove(0,1)));
+					}
+				}
+				else
+				{
+					Console.WriteLine("no text");
+
+				}
+			}
+
+			DLAgent me = new DLAgent(new Scorer());
+			BotHeimbrodt opp = new BotHeimbrodt();
+
+			var gameConfig = new GameConfig()
+			{
+				Player1HeroClass = CardClass.MAGE, //random classes
+				Player2HeroClass = CardClass.HUNTER,
+				FillDecks = true,
+				Shuffle = true,
+				Logging = false
+			};
+
+			var gameHandler = new POGameHandler(gameConfig, me, opp, repeatDraws: false);
+			bool valid = gameHandler.PlayGame();
+			GameStats stats = gameHandler.getGameStats();
+			stats.printResults();
+
+			List<GameRecord.TransitionRecord> records = me.Record.ConstructTransitions(stats.PlayerA_Wins > stats.PlayerB_Wins);
+
+			//ReplayMemoryDB db = new ReplayMemoryDB();
+			//db.Initialize();
+			//db.Push(records);
+
+			//GameRecord.TransitionRecord[] trans = db.Sample(3);
+			//db.Close();
+
+			//Trainer trainer = new Trainer();
+			//trainer.Warmup(1, false);
+			//trainer.Warmup(1, true);
 			//trainer.Warmup(100, true);
 			//trainer.RunTrainingLoop(1,3);
 

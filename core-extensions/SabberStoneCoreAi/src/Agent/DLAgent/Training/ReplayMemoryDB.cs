@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
+using static SabberStoneCoreAi.Agent.DLAgent.GameSearchTree;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -18,9 +19,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 	{
 		private const string CONNECT_STRING = "Host=localhost; Database=dl_project_db; Username=dl_user; Password=dl_password";
 
-		private const string COUNT_QUERY = "SELECT COUNT(*) FROM transitions;";
-		private const string MAX_ID_QUERY = "SELECT MAX(id) FROM transitions;";
-		private const string MIN_ID_QUERY = "SELECT MIN(id) FROM transitions;";
+		private const string COUNT_QUERY = "SELECT COUNT(*) FROM transitions2;";
+		private const string MAX_ID_QUERY = "SELECT MAX(transition_id) FROM transitions2;";
+		private const string MIN_ID_QUERY = "SELECT MIN(transition_id) FROM transitions2;";
+		private const string MAX_GAME_QUERY = "SELECT MAX(game_id) FROM transitions2;";
+		private const string MIN_GAME_QUERY = "SELECT MIN(game_id) FROM transitions2;";
 
 		private const string NONE = "none";
 
@@ -31,7 +34,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <summary>
 		/// The id to give the next tuple added to the database. Should always be one more than the largest currently existing id
 		/// </summary>
-		private int current_id;
+		private int current_trans_id;
+
+		/// <summary>
+		/// The id to give the next game added to the database. Should always be one more than the largest currently existing id
+		/// </summary>
+		private int current_game_id;
 
 		/// <summary>
 		/// The maximum number of tuples to keep in the database
@@ -45,7 +53,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			conn = new NpgsqlConnection(CONNECT_STRING);
 			conn.Open();
 
-			current_id = 0;
+			current_trans_id = 0;
+			current_game_id = 0;
 
 			mutex = new Mutex();
 
@@ -67,11 +76,21 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			NpgsqlDataReader rdr = cmd.ExecuteReader();
 			while (rdr.Read())
 			{
-				current_id = rdr.GetInt32(0) + 1;
+				current_trans_id = rdr.GetInt32(0) + 1;
 			}
 			rdr.Close();
 
-			Console.WriteLine("Initialized current_id to {0}", current_id);
+			//get the maximum id in the database
+			cmd = new NpgsqlCommand(MAX_GAME_QUERY, conn);
+			rdr = cmd.ExecuteReader();
+			while (rdr.Read())
+			{
+				current_game_id = rdr.GetInt32(0) + 1;
+			}
+			rdr.Close();
+
+			Console.WriteLine("Initialized current_tran_id to {0}", current_trans_id);
+			Console.WriteLine("Initialized current_game_id to {0}", current_game_id);
 
 			mutex.ReleaseMutex();
 		}
@@ -107,7 +126,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				if (minId >= 0)
 				{
-					string comand = $"DELETE FROM transitions WHERE id<{minId + toAdd};";
+					string comand = $"DELETE FROM transitions2 WHERE transition_id<{minId + toAdd};";
 					cmd = new NpgsqlCommand(comand, conn);
 					cmd.ExecuteNonQuery();
 				}
@@ -130,12 +149,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					string successor = record.successor != null ? JsonConvert.SerializeObject(record.successor) : NONE;
 					string successor_actions = record.successor_actions != null ? JsonConvert.SerializeObject(record.successor_actions) : NONE;
 
-					string comand = $"INSERT INTO transitions (state, action, reward, successor, successor_actions, id) VALUES ('{state}', '{action}', {reward}, '{successor}', '{successor_actions}', {current_id});";
+					string comand = $"INSERT INTO transitions2 (state, action, reward, successor, successor_actions, transition_id, game_id) VALUES ('{state}', '{action}', {reward}, '{successor}', '{successor_actions}', {current_trans_id}, {current_game_id});";
 					NpgsqlCommand cmd = new NpgsqlCommand(comand, conn);
 					cmd.ExecuteNonQuery();
 
-					current_id++;
+					current_trans_id++;
 				}
+
+				current_game_id++;
 			}
 			catch(Exception ex)
 			{
@@ -155,10 +176,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			try
 			{
-				var ids = from r in Enumerable.Range(0, batchSize) select rnd.Next(Math.Max(0, current_id-replayMemorySize), current_id);
+				var ids = from r in Enumerable.Range(0, batchSize) select rnd.Next(Math.Max(0, current_trans_id-replayMemorySize), current_trans_id);
 				string id_str = String.Join(",", ids.ToArray());
 
-				string sample_query = $"SELECT * FROM transitions WHERE id IN ({id_str});";
+				string sample_query = $"SELECT * FROM transitions2 WHERE transition_id IN ({id_str});";
 				var cmd = new NpgsqlCommand(sample_query, conn);
 				NpgsqlDataReader rdr = cmd.ExecuteReader();
 
@@ -177,7 +198,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					newRec.action = JsonConvert.DeserializeObject<GameRep>(action_str);
 					newRec.reward = reward;
 					newRec.successor = successor_str.Equals(NONE) ? null : JsonConvert.DeserializeObject<GameRep>(successor_str);
-					newRec.successor_actions = succ_act_str.Equals(NONE) ? null :  JsonConvert.DeserializeObject<SparseTree>(succ_act_str);
+					newRec.successor_actions = succ_act_str.Equals(NONE) ? null :  JsonConvert.DeserializeObject<SavableTree>(succ_act_str);
 
 					result[i] = newRec;
 					i++;

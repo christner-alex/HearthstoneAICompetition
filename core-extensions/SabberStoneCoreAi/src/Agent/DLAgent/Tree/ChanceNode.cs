@@ -109,7 +109,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			if (ChildrenTrees.Count == 0)
 			{
-				return Tree.Agent.scorer.TurnDecay(Tree.Agent.StartTurnState.Turn);
+				return Scorer.TurnDecay(Tree.Agent.StartTurnState.Turn);
 			}
 
 			float numerator = 0;

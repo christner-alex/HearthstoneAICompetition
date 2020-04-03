@@ -337,8 +337,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 
 				//save the transitions
-				List<GameRecord.TransitionRecord> p1Records = agent1.Record.ConstructTransitions(agent1.scorer, gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
-				List<GameRecord.TransitionRecord> p2Records = agent2.Record.ConstructTransitions(agent2.scorer, gameStats.PlayerB_Wins > gameStats.PlayerA_Wins);
+				List<GameRecord.TransitionRecord> p1Records = agent1.Record.ConstructTransitions(gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
+				List<GameRecord.TransitionRecord> p2Records = agent2.Record.ConstructTransitions(gameStats.PlayerB_Wins > gameStats.PlayerA_Wins);
 				replayMemory.Push(p1Records);
 				replayMemory.Push(p2Records);
 			}

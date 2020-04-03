@@ -70,7 +70,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return PushAction(new GameRep(game, this), stree.CreateSavable());
 		}
 
-		public List<TransitionRecord> ConstructTransitions(Scorer scorer, bool won)
+		public List<TransitionRecord> ConstructTransitions(bool won)
 		{
 			List<TransitionRecord> records = new List<TransitionRecord>();
 
@@ -86,13 +86,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				if (i == Actions.Count - 1)
 				{
 					//if the action lead to the terminal state, get the win or loss score
-					r.reward = won ? scorer.WinScore : scorer.LossScore;
+					r.reward = won ? Scorer.WinScore : Scorer.LossScore;
 				}
 				else
 				{
 					//remember, we are storing the portion of the immediate reward
 					//gained during the opponent's turn
-					r.reward = scorer.TurnReward(r.action, r.successor);
+					r.reward = Scorer.TurnReward(r.action, r.successor);
 				}
 
 				records.Add(r);

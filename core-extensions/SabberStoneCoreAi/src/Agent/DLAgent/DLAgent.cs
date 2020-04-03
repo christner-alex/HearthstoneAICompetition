@@ -61,6 +61,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				StartTurnState = poGame;
 				StartTurnRep = new GameRep(poGame, Record);
 
+				//add the start turn to the record
 				Record.PushState(StartTurnRep.Copy());
 
 				//create a new tree for the start of the turn
@@ -117,6 +118,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				//record the end of turn state
 				Record.PushAction(poGame, root_tree);
+
+				//delete the trees
+				tree = null;
+				root_tree = null;
 			}
 
 			return move;

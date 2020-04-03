@@ -81,6 +81,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return (newChildren, winner);
 		}
 
+		public float Priority => -Scorer.TurnReward(Tree.StartTurnState, StateRep);
+
 		/*
 		public float Score()
 		{

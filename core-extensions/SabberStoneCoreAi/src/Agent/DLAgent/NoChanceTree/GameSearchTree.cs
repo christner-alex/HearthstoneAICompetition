@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using Priority_Queue;
 
 namespace SabberStoneCoreAi.Agent.DLAgent
 {
@@ -48,9 +49,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public readonly GameRep StartTurnState;
 
 		/// <summary>
-		/// A list of nodes to be searched in the FillDeterministicTree function.
+		/// A list of nodes to be searched in the Run function
 		/// </summary>
-		private Stack<GameNode> expansion_list;
+		private SimplePriorityQueue<GameNode> expansion_queue;
 
 		public GameSearchTree(POGame.POGame root_game, DLAgent agent)
 		{
@@ -60,18 +61,20 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			taskqueue = new Queue<GameNode>();
 			taskTerminal = null;
 			lethal_node = null;
-			expansion_list = new Stack<GameNode>();
+			expansion_queue = new SimplePriorityQueue<GameNode>();
 
 			Root = new GameNode(null, null, this, root_game);
 
 			Nodes.Add(Root.StateRep, Root);
+
+
 			if (Root.IsLethal)
 			{
 				lethal_node = Root;
 			}
 			else if(!Root.IsLoss)
 			{
-				expansion_list.Push(Root);
+				expansion_queue.Enqueue(Root, Root.Priority);
 			}
 		}
 
@@ -84,7 +87,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// True if there is nothing left to expand, either because there are no more nodes to expand
 		/// or there are 
 		/// </summary>
-		public bool DoneExpanding => expansion_list.Count == 0 || !FoundLethal;
+		public bool DoneExpanding => FoundLethal || expansion_queue.Count == 0;
 
 		public void Run(float runtime)
 		{
@@ -94,7 +97,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//while we are not done expanding and there is still time left
 			while(!DoneExpanding && watch.Elapsed.TotalSeconds < runtime)
 			{
-				GameNode current = expansion_list.Pop();
+				GameNode current = expansion_queue.Dequeue();
 
 				(Dictionary<GameRep, GameNode>, GameNode) newNodes = current.FindChildren();
 
@@ -109,7 +112,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				foreach(KeyValuePair<GameRep, GameNode> node in newNodes.Item1)
 				{
 					Nodes.Add(node.Key, node.Value);
-					expansion_list.Push(node.Value);
+					expansion_queue.Enqueue(node.Value, node.Value.Priority);
 				}
 			}
 
@@ -126,11 +129,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//score the tree and set the current node to 
 			if(!FoundLethal)
 			{
-				SavableTree stree = new SavableTree(this);
+				SavableTree stree = CreateSavable();
 				(float, GameRep) best = stree.Score(Agent.scorer, true);
 				current = Nodes.ContainsKey(best.Item2) ? Nodes[best.Item2] : current;
 			}
 
+			//if there is no lethal node and no best node, return no queue
 			if(current == null)
 			{
 				taskTerminal = null;
