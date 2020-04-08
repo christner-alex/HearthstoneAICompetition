@@ -16,41 +16,39 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public static float LossScore = -200f;
 
 		public static NDArray friendly_diff_weights = np.array(
-				0.02f, //player_health
-				0f, //player_base_mana
+				0.01f, //player_health
+				0.5f, //player_base_mana
 				-0.5f, //player_remaining_mana
 				0.1f, //player_hand_size
 				0.3f, //player_board_size
 				0.01f, //player_deck_size
 				0.2f, //player_secret_size
 				0f, //graveyard size
-				0.05f, //player_total_atk
-				0.05f, //player_total_health
-				0.05f, //player taunt_health
+				0.03f, //player_total_atk
+				0.03f, //player_total_health
+				0.03f, //player_taunt_health
 				0.1f, //hero attack damage
 				0.1f, //hero weapon durability
 				0f, //hero power activations
-				0f, //hand cost
-				-0.25f //game turn
+				0f //hand cost
 			);
 
 		public static NDArray enemy_diff_weights = np.array(
 				-0.01f, //player_health
-				0f, //player_base_mana
+				-0.5f, //player_base_mana
 				0.5f, //player_remaining_mana
 				-0.1f, //player_hand_size
 				-0.3f, //player_board_size
 				-0.01f, //player_deck_size
 				-0.2f, //player_secret_size
 				0f, //graveyard size
-				-0.05f, //player_total_atk
-				-0.05f, //player_total_health
-				-0.05f, //player taunt_health
+				-0.03f, //player_total_atk
+				-0.03f, //player_total_health
+				-0.03f, //player_taunt_health
 				-0.1f, //hero attack damage
 				-0.1f, //hero weapon durability
 				0f, //hero power activations
-				0f, //hand cost
-				-0.25f //game turn
+				0f //hand cost
 			);
 
 		public static NDArray friendly_end_weights = np.array(
@@ -68,8 +66,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				0f, //hero attack damage
 				0f, //hero weapon durability
 				0f, //hero power activations
-				0f, //hand cost
-				0f //game turn
+				0f //hand cost
 			);
 
 		public static NDArray enemy_end_weights = np.array(
@@ -87,8 +84,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				0f, //hero attack damage
 				0f, //hero weapon durability
 				0f, //hero power activations
-				0f, //hand cost
-				0f //game turn
+				0f //hand cost
 			);
 
 		public GameEvalDQN Network { get; }
@@ -119,7 +115,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			NDArray friendly_end_board = end_board[0];
 			NDArray enemy_end_board = end_board[1];
 
-			if(friendly_end_board.GetValue<float>(0) <=0 )
+			//return the win/loss scores if health is 0 or less
+			if(friendly_end_board.GetValue<float>(0) <= 0 )
 			{
 				return LossScore;
 			}
@@ -128,6 +125,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				return WinScore;
 			}
 
+			//vectors representing the change in each board
 			NDArray friendly_difference = friendly_end_board - friendly_start_board;
 			NDArray enemy_difference = enemy_end_board - enemy_start_board;
 
@@ -142,7 +140,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			var l = from int i in Enumerable.Range(0, start_states.Length)
 					select TurnReward(start_states[i], end_states[i]);
-			return np.array(l.ToArray());
+			return np.array(l.ToArray()).astype(NPTypeCode.Float);
 		}
 
 		/// <summary>
@@ -151,7 +149,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// <param name="end_state">The GameRep representing the result of taking the end turn action</param>
 		public float FutureRewardEstimate(GameRep end_state, bool use_online)
 		{
-			//TODO implement neural network
 			if (Network == null) return 0f;
 
 			var result = Network.ScoreStates(use_online, end_state).GetValue<float>(0);
@@ -161,7 +158,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public NDArray FutureRewardEstimate(GameRep[] end_states, bool use_online)
 		{
-			if (Network == null) return np.zeros(end_states.Length);
+			if (Network == null) return np.zeros(end_states.Length).astype(NPTypeCode.Float);
 
 			var result = Network.ScoreStates(use_online, end_states);
 
@@ -184,7 +181,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			NDArray turn = TurnReward(start_states, end_states);
 			NDArray future = FutureRewardEstimate(end_states, use_online);
-			return np.add(turn, future);
+			return np.add(turn, future).astype(NPTypeCode.Float);
 		}
 
 		public NDArray Q(GameRep start_state, GameRep[] end_states, bool use_online)
@@ -193,11 +190,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return Q(start_states, end_states, use_online);
 		}
 
-		public static float TurnDecay(int turn)
-		{
-			return -0.25f * turn;
-		}
-
+		/*
 		/// <summary>
 		/// Calculate the score observed from a (state,action,state) transistion, which is the difference between
 		/// the reward gained by the current player on their turn and the opposite of the reward gained by the
@@ -210,6 +203,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			return TurnReward(turn1start, turn1end) - TurnReward(turn1end, turn2start);
 		}
+		*/
 
 		/// <summary>
 		/// Use the target portion of the network to create target values for each of the transitions
@@ -220,7 +214,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			//target = r + lambda * max_a' Q(s', a')
 			var l = from t in transitions select t.reward==WinScore || t.reward==LossScore ? t.reward : t.reward + Gamma * (t.successor_actions?.DoubleQScore(this) ?? 0);
-			return np.array(l.ToArray());
+			return np.array(l.ToArray()).astype(NPTypeCode.Float);
 		}
 
 		private bool CheckRep()

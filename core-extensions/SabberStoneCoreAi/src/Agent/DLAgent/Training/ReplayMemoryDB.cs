@@ -67,7 +67,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			mutex.Close();
 		}
 
-		public void Initialize()
+		/// <summary>
+		/// Get the largest transition and game ids from the database.
+		/// </summary>
+		public void Load()
 		{
 			mutex.WaitOne();
 

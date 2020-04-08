@@ -12,6 +12,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class GameRecord
 	{
+		public static float TurnDecay = -0.25f;
+
 		public struct TransitionRecord
 		{
 			public GameRep state;
@@ -70,6 +72,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return PushAction(new GameRep(game, this), stree.CreateSavable());
 		}
 
+		/// <summary>
+		/// DEPRICATED
+		/// </summary>
+		/// <param name="won"></param>
+		/// <returns></returns>
 		public List<TransitionRecord> ConstructTransitions(bool won)
 		{
 			List<TransitionRecord> records = new List<TransitionRecord>();
@@ -104,6 +111,62 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public List<NDArray> LastBoards(int n)
 		{
 			return States.TakeLast(n).Select(x => x.BoardRep).ToList();
+		}
+
+		public static List<TransitionRecord> ConstructTransitions(GameRecord firstPlayer, GameRecord secondPlayer, bool firstWon)
+		{
+			if(firstPlayer.Actions.Count != secondPlayer.Actions.Count && firstPlayer.Actions.Count != secondPlayer.Actions.Count + 1)
+			{
+				throw new ArgumentException($"The shape of the GameRecord Actions are incorrect: firstPlayer: {firstPlayer.Actions.Count} secondPlayer; {secondPlayer.Actions.Count}");
+			}
+
+			List<TransitionRecord> transitions = new List<TransitionRecord>();
+
+			for(int i=0; i< firstPlayer.Actions.Count; i++)
+			{
+				TransitionRecord r = new TransitionRecord();
+				r.state = firstPlayer.States[i].Copy();
+				r.action = firstPlayer.Actions[i].Copy();
+				r.successor = i + 1 < firstPlayer.States.Count ? firstPlayer.States[i + 1].Copy() : null;
+				r.successor_actions = i + 1 < firstPlayer.SuccessorTrees.Count ? firstPlayer.SuccessorTrees[i + 1] : null;
+
+				if (i == firstPlayer.Actions.Count - 1)
+				{
+					//if it was the last turn, set the score to the corresponding win/loss score
+					r.reward = firstWon ? Scorer.WinScore : Scorer.LossScore;
+				}
+				else if (i < secondPlayer.Actions.Count)
+				{
+					//otherwise, set the score to the opposite of what the second player gained on their next turn, and a decay to penalize too many turns
+					r.reward = - Scorer.TurnReward(secondPlayer.States[i], secondPlayer.Actions[i]) - TurnDecay;
+				}
+
+				transitions.Add(r);
+			}
+
+			for(int i=0; i<secondPlayer.Actions.Count; i++)
+			{
+				TransitionRecord r = new TransitionRecord();
+				r.state = secondPlayer.States[i].Copy();
+				r.action = secondPlayer.Actions[i].Copy();
+				r.successor = i + 1 < secondPlayer.States.Count ? secondPlayer.States[i + 1].Copy() : null;
+				r.successor_actions = i + 1 < secondPlayer.SuccessorTrees.Count ? secondPlayer.SuccessorTrees[i + 1] : null;
+
+				if (i == secondPlayer.Actions.Count - 1)
+				{
+					//if it was the last turn, set the score to the corresponding win/loss score
+					r.reward = firstWon ? Scorer.LossScore : Scorer.WinScore;
+				}
+				else if (i + 1 < firstPlayer.Actions.Count)
+				{
+					//otherwise, set the score to the opposite of what the first player gained on their next turn, and a decay to penalize too many turns
+					r.reward = - Scorer.TurnReward(firstPlayer.States[i+1], firstPlayer.Actions[i+1]) - TurnDecay;
+				}
+
+				transitions.Add(r);
+			}
+
+			return transitions;
 		}
 	}
 }

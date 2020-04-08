@@ -40,15 +40,20 @@ namespace SabberStoneCoreAi
 			//db.Initialize();
 			//GameRecord.TransitionRecord[] trans = db.Sample(3);
 			//db.Close();
+			/*
+			string test_str = "hello there hello there";
+			Match test_match = Regex.Match(test_str, "ello*");
 
 			List<Card> deck = new List<Card>();
-			deck.Add(Cards.FromName("Arcane Missiles"));
-			deck.Add(Cards.FromName("Stonetusk Boar"));
-			deck.Add(Cards.FromName("Mind Control Tech"));
-			deck.Add(Cards.FromName("Bloodfen Raptor"));
+			//deck.Add(Cards.FromName("Arcane Missiles"));
+			//deck.Add(Cards.FromName("Stonetusk Boar"));
+			//deck.Add(Cards.FromName("Mind Control Tech"));
+			//deck.Add(Cards.FromName("Bloodfen Raptor"));
 			deck.Add(Cards.FromName("Loot Hoarder"));
 			deck.Add(Cards.FromName("Arcane Intellect"));
 			deck.Add(Cards.FromName("Fireball"));
+			deck.Add(Cards.FromName("Pyroblast"));
+			deck.Add(Cards.FromName("Lightning Storm"));
 
 			foreach (Card c in deck)
 			{
@@ -56,18 +61,26 @@ namespace SabberStoneCoreAi
 				if(text!=null)
 				{
 					text = text.ToLower();
+					//text = "deal two damage";
 					Console.WriteLine(text);
-					Match draw_match = Regex.Match(text, "draw\\s(a|[1-9])\\scard");
-					Match damage_match = Regex.Match(text, "deal\\s[$][1-9]*\\sdamage");
+					Match draw_match = Regex.Match(text, "draw\\s.*\\scard");
+					Match damage_match = Regex.Match(text, "deal\\s.*\\sdamage");
 					if (draw_match.Success)
 					{
+						int draw_amount = 0;
 						string amount = draw_match.Value.Split(" ")[1];
-						int draw_amount = amount.Equals("a") ? 1 : Int32.Parse(amount);
+						if (amount.Equals("a")) draw_amount = 1;
+						else if(amount.Any(char.IsDigit)) draw_amount = Int32.Parse(Regex.Match(amount, "[0-9]+").Value);
 						Console.WriteLine(draw_amount);
 					}
 					if (damage_match.Success)
 					{
-						Console.WriteLine(Int32.Parse(damage_match.Value.Split(" ")[1].Remove(0,1)));
+						string middle = damage_match.Value.Split(" ")[1];
+						int damage = 0;
+						if (middle.Equals("a")) damage = 1;
+						else if (middle.Any(char.IsDigit)) damage = Int32.Parse(Regex.Match(middle, "[0-9]+").Value);
+						Console.WriteLine(middle);
+						Console.WriteLine(damage);
 					}
 				}
 				else
@@ -76,9 +89,20 @@ namespace SabberStoneCoreAi
 
 				}
 			}
+			*/
 
-			DLAgent me = new DLAgent(new Scorer());
-			BotHeimbrodt opp = new BotHeimbrodt();
+			/*
+			ReplayMemoryDB db2 = new ReplayMemoryDB();
+			db2.Load();
+			GameRecord.TransitionRecord[] trans2 = db2.Sample(3);
+			db2.Close();
+
+			GameEvalDQN network = new GameEvalDQN();
+			network.StartSession();
+			network.Initialize();
+
+			DLAgent me = new DLAgent(new Scorer(network), turn_secs: 200f);
+			DLAgent opp = new DLAgent(new Scorer(network), turn_secs: 200f);
 
 			var gameConfig = new GameConfig()
 			{
@@ -94,19 +118,23 @@ namespace SabberStoneCoreAi
 			GameStats stats = gameHandler.getGameStats();
 			stats.printResults();
 
-			List<GameRecord.TransitionRecord> records = me.Record.ConstructTransitions(stats.PlayerA_Wins > stats.PlayerB_Wins);
+			network.EndSession();
 
-			//ReplayMemoryDB db = new ReplayMemoryDB();
-			//db.Initialize();
-			//db.Push(records);
+			//List<GameRecord.TransitionRecord> records = me.Record.ConstructTransitions(stats.PlayerA_Wins > stats.PlayerB_Wins);
+			List<GameRecord.TransitionRecord> records = GameRecord.ConstructTransitions(me.Record, opp.Record, stats.PlayerA_Wins > stats.PlayerB_Wins);
 
-			//GameRecord.TransitionRecord[] trans = db.Sample(3);
-			//db.Close();
+			ReplayMemoryDB db = new ReplayMemoryDB();
+			//db.Load();
+			db.Push(records);
 
-			//Trainer trainer = new Trainer();
-			//trainer.Warmup(1, false);
-			//trainer.Warmup(1, true);
-			//trainer.Warmup(100, true);
+			GameRecord.TransitionRecord[] trans = db.Sample(3);
+			db.Close();
+			*/
+
+			Trainer trainer = new Trainer();
+			//trainer.Warmup(6, false);
+			//trainer.Warmup(6, true);
+			trainer.Warmup(300, true);
 			//trainer.RunTrainingLoop(1,3);
 
 			Console.ReadLine();

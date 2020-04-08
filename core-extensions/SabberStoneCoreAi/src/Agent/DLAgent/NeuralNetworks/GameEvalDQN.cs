@@ -64,7 +64,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			target = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1), name: "target_input");
 
-			initializer = tf.random_normal_initializer(stddev: 0.1f);
+			initializer = tf.random_normal_initializer(stddev: 0.1f, dtype: TF_DataType.TF_FLOAT);
 
 			//create identical graphs for the online network and the target network
 			(online_pred, online_vars) = CreateSubgraph("online");

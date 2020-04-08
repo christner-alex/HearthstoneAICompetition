@@ -34,8 +34,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 
 		public const int minion_vec_len = 14;
-		public const int card_vec_len = 13;
-		public const int board_vec_len = 16;
+		public const int card_vec_len = 14;
+		public const int board_vec_len = 15;
 
 		public const int max_minions = 14;
 		public const int max_side_minions = 7;
@@ -154,7 +154,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return ((IStructuralEquatable)FlatRep.ToArray<int>()).GetHashCode(EqualityComparer<int>.Default);
 		}
 
-		private static NDArray BoardSideToVec(POGame.POGame game, Controller player)
+		private static NDArray BoardSideToVec(Controller player)
 		{
 			return np.array(
 				player.Hero.Health + player.Hero.Armor, //player_health
@@ -171,8 +171,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				player.Hero.TotalAttackDamage, //hero attack damage
 				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0, //hero weapon durability
 				player.HeroPowerActivationsThisTurn,  //hero power activations
-				player.HandZone.Sum(p => p.Cost), //hand cost
-				player.Game.Turn // player turn
+				player.HandZone.Sum(p => p.Cost) //hand cost
 			);
 		}
 
@@ -186,8 +185,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Controller current_player = game.CurrentPlayer;
 			Controller opponent = current_player.Opponent;
 
-			NDArray friendly = BoardSideToVec(game, current_player);
-			NDArray enemy = BoardSideToVec(game, opponent);
+			NDArray friendly = BoardSideToVec(current_player);
+			NDArray enemy = BoardSideToVec(opponent);
 
 			NDArray result = np.stack(new NDArray[] { friendly, enemy });
 			return result;
@@ -233,6 +232,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			int atk = 0;
 			int def = 0;
 
+			bool specialSpell = false;
+
 			switch (card.Type)
 			{
 				case CardType.MINION:
@@ -242,6 +243,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					break;
 				case CardType.SPELL:
 					result[1] = 1;
+					specialSpell = card.IsSecret || card.IsQuest;
 					break;
 				case CardType.WEAPON:
 					card.Tags.TryGetValue(GameTag.ATK, out atk);
@@ -267,6 +269,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			bool battlecry = false;
 			bool inspire = false;
 
+			int aoe = 0;
+
 			if (card.Text != null)
 			{
 				string text = card.Text.ToLower();
@@ -276,36 +280,41 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				start_turn = text.Contains("at the start");
 				end_turn = text.Contains("at the end");
 				whenever = text.Contains("whenever");
-				when = text.Contains("when") && !whenever;
+				when = text.Contains("when ");
 				after = text.Contains("after");
+				aoe = text.Contains("to all") ? 1 : 0;
 
-				Match draw_match = Regex.Match(text, "draw\\s(a|[1-9])");
-				Match damage_match = Regex.Match(text, "deal\\s[$][1-9]*\\sdamage");
-				Match heal_match = Regex.Match(text, "restore\\s[$][1-9]*\\shealth");
+
+				Match draw_match = Regex.Match(text, "draw\\s.*\\scard");
+				Match damage_match = Regex.Match(text, "deal\\s.*\\sdamage");
+				Match heal_match = Regex.Match(text, "restore\\s.*\\shealth");
 
 				if (draw_match.Success)
 				{
 					string amount = draw_match.Value.Split(" ")[1];
-					draw = amount.Equals("a") ? 1 : Int32.Parse(Regex.Replace(amount, "[^0-9]", "").Substring(0,1));
+					if (amount.Equals("a")) draw = 1;
+					else if (amount.Any(char.IsDigit)) draw = Int32.Parse(Regex.Match(amount, "[0-9]+").Value);
 				}
 				if (damage_match.Success)
 				{
 					string amount = damage_match.Value.Split(" ")[1];
-					damage = amount.Equals("a") ? 1 : Int32.Parse(Regex.Replace(amount, "[^0-9]", "").Substring(0, 1));
+					if (amount.Equals("a")) damage = 1;
+					else if (amount.Any(char.IsDigit)) damage = Int32.Parse(Regex.Match(amount, "[0-9]+").Value);
 				}
 				if(heal_match.Success)
 				{
 					string amount = heal_match.Value.Split(" ")[1];
-					restore = amount.Equals("a") ? 1 : Int32.Parse(Regex.Replace(amount, "[^0-9]", "").Substring(0, 1));
+					if (amount.Equals("a")) restore = 1;
+					else if (amount.Any(char.IsDigit)) restore = Int32.Parse(Regex.Match(amount, "[0-9]+").Value);
 				}
 			}
 
-			int instant_effect = new bool[] { battlecry, card.Charge, card.Rush, card.ChooseOne }.Count(v => v);
-			int continuous_effect = new bool[] { start_turn, end_turn, whenever, after, inspire }.Count(v => v);
-			int enchantment = new bool[] {card.DivineShield, card.CantBeTargetedBySpells, card.CantBeTargetedByHeroPowers,
-				card.Echo, card.LifeSteal, card.Poisonous, card.Stealth, card.Windfury, card.Deathrattle, card.Combo }.Count(v => v);
+			int instant_effects = new bool[] { battlecry, card.Charge, card.Rush, card.ChooseOne, card.Combo }.Count(v => v);
+			int continuous_triggers = new bool[] { start_turn, end_turn, whenever, after, inspire }.Count(v => v);
+			int enchantments = new bool[] {card.DivineShield, card.CantBeTargetedBySpells, card.Echo, card.Taunt,
+				card.LifeSteal, card.Poisonous, card.Stealth, card.Windfury, card.Deathrattle, card.SpellPower > 0 }.Count(v => v);
 
-			result["4:"] = np.array(cost, atk, def, draw, damage, restore, instant_effect, continuous_effect, enchantment);
+			result["4:"] = np.array(cost, atk, def, draw, damage, restore, aoe, instant_effects, continuous_triggers, enchantments);
 
 			return result;
 		}

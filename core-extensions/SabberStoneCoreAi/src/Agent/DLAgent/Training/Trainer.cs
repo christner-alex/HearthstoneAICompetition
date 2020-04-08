@@ -27,26 +27,26 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private ReplayMemoryDB replayMemory;
 
-		private const int numDataThreads = 1;
+		private const int numDataThreads = 3;
+		private const int numTrainGamesPerThread = 50;
 
-		private const int trainItr = 1;
-		private const int saveItr = 5;
-		private const int copyItr = 25;
-		private const int testItr = 50;
+		private const int saveItr = 100;
+		private const int copyItr = 500;
 
 		private const int batchSize = 50;
-		private const int numTrainLoops = 5;
 
 		private const float max_eps = 0.5f;
 		private const float min_eps = 0.01f;
 		private const int epsDecaySteps = 1000;
-		private float currentEps = 0.5f;
 
 		private const int numTestGamesPerBot = 20;
-		private const int numTestThreads = 1;
+		private const int numTestThreads = 3;
 		private List<TestingParams> testingParams;
 
 		private bool stop;
+		private bool pauseTrain;
+
+		private int trainIteration;
 
 		private const string EXCEPTION_LOG_FILENAME = "exception_log.txt";
 		private const string BENCHMARK_LOG_FILENAME = "benchmark_log.txt";
@@ -64,6 +64,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			replayMemory = new ReplayMemoryDB();
 
 			stop = false;
+			pauseTrain = false;
+			trainIteration = 0;
 
 			List<(List<Card>, CardClass)> testDecks = new List<(List<Card>,CardClass)>(){
 				(Decks.MidrangeJadeShaman, CardClass.SHAMAN),
@@ -136,7 +138,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				network.LoadModel();
 
 				//reload the replay buffer
-				replayMemory.Initialize();
+				replayMemory.Load();
 			}
 		}
 
@@ -160,7 +162,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			InitializeObjects(load);
 
-			network.CopyOnlineToTarget(); //temporary
+			network.CopyOnlineToTarget();
 
 			try
 			{
@@ -173,6 +175,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				{
 					throw new ArgumentException();
 				}
+				Console.WriteLine("{0} games per thread", numGamesPerThread);
 
 				for (int i = 0; i < numDataThreads; i++)
 				{
@@ -198,9 +201,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 		}
 
-		public void RunTrainingLoop(int startIter, int stopItr = int.MaxValue)
+		public void RunTrainingLoop(int startIter)
 		{
-			int it = Math.Max(1, startIter);
+			trainIteration = Math.Max(1, startIter);
 
 			//initialize the objects, making sure to load a model and replay memory
 			//already created from warmups
@@ -211,85 +214,59 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				Thread StopThread = new Thread(StopIO);
 				StopThread.Start();
 
-				while (it < stopItr)
+				while(true)
 				{
-					//update the epsilon exploration parameter
-					currentEps = Math.Max(min_eps, max_eps - (max_eps - min_eps) * it / epsDecaySteps);
-
-					//play training games
-					Console.WriteLine("============================");
-					Console.WriteLine("Iteration {0}", it);
-					Console.WriteLine("Playing Training Games");
-
-					//stop if the io thread is done
-					if (stop) break;
-
-					//launch threads to play training games
-					Thread[] threads = new Thread[numDataThreads];
+					//create threads to play training games in
+					Thread[] trainGameThreads = new Thread[numDataThreads];
 					for (int i = 0; i < numDataThreads; i++)
 					{
-						threads[i] = new Thread(LoopTrainingGames);
-						threads[i].Start(1);
+						trainGameThreads[i] = new Thread(LoopTrainingGames);
+						trainGameThreads[i].Start(numTrainGamesPerThread);
 					}
 
+					//create a thread to update the network
+					Thread trainNetworkThread = new Thread(LoopTrainNetwork);
+					trainNetworkThread.Start();
+
 					//wait for each training thread to join
-					foreach (Thread t in threads)
+					foreach (Thread t in trainGameThreads)
 					{
 						t.Join();
 					}
 
-					//run update
-					if(it % trainItr == 0)
+					//tell the train thread to stop
+					pauseTrain = true;
+					trainNetworkThread.Join();
+
+					if (stop) break;
+
+					Console.WriteLine("Testing against other bots");
+					logMutex.WaitOne();
+					using (StreamWriter w = File.AppendText(BENCHMARK_LOG_FILENAME))
 					{
-						Console.WriteLine("Training Network");
-						TrainNetwork(it);
+						w.WriteLine();
+						w.WriteLine("====================================================");
+						w.WriteLine();
+						w.WriteLine("Testing Iteration {0}", trainIteration);
+						w.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
+					}
+					logMutex.ReleaseMutex();
+
+					//create threads for testing
+					Thread[] testThreads = new Thread[numTestThreads];
+					for (int j = 0; j < numTestThreads; j++)
+					{
+						testThreads[j] = new Thread(TestingThread);
+						testThreads[j].Start(j);
 					}
 
-					//at regular intervals, copy the ops
-					if (it % copyItr == 0)
+					//wait for each testing thread to join
+					foreach (Thread t in testThreads)
 					{
-						Console.WriteLine("Copying online to target");
-						network.CopyOnlineToTarget();
+						t.Join();
 					}
 
-					//at regular intervals, save the model
-					if (it % saveItr == 0)
-					{
-						Console.WriteLine("Saving Model");
-						network.SaveModel(it);
-					}
-
-					//at regular intervals, test the model on other agents
-					if (it % testItr == 0)
-					{
-						Console.WriteLine("Testing against other bots");
-						logMutex.WaitOne();
-						using (StreamWriter w = File.AppendText(BENCHMARK_LOG_FILENAME))
-						{
-							w.WriteLine();
-							w.WriteLine("====================================================");
-							w.WriteLine();
-							w.WriteLine("Training Iteration {0}", it);
-							w.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
-						}
-						logMutex.ReleaseMutex();
-
-						//create threads for testing
-						Thread[] testThreads = new Thread[numTestThreads];
-						for(int j=0; j<numTestThreads; j++)
-						{
-							testThreads[j] = new Thread(TestingLoop);
-							testThreads[j].Start(j);
-						}
-
-						//wait for each testing thread to join
-						foreach (Thread t in testThreads)
-						{
-							t.Join();
-						}
-					}
-
-					it++;
+					pauseTrain = false;
 				}
 			}
 			catch (Exception ex)
@@ -299,8 +276,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 			finally
 			{
-				Console.WriteLine("Final Iteration: {0}", it);
-				Finalize(it);
+				Console.WriteLine("Final Iteration: {0}", trainIteration);
+				Finalize(trainIteration);
 			}
 		}
 
@@ -315,11 +292,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		{
 			try
 			{
+				float currentEps = Math.Max(min_eps, max_eps - (max_eps - min_eps) * trainIteration / epsDecaySteps);
 				DLAgent agent1 = new DLAgent(new Scorer(network), eps: currentEps);
 				DLAgent agent2 = new DLAgent(new Scorer(network), eps: currentEps);
 
 				var gameConfig = new GameConfig()
 				{
+					StartPlayer = 1,
 					Player1HeroClass = (CardClass)classes.GetValue(rnd.Next(2, 11)), //random classes
 					Player2HeroClass = (CardClass)classes.GetValue(rnd.Next(2, 11)),
 					FillDecks = true,
@@ -337,12 +316,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				}
 
 				//save the transitions
-				List<GameRecord.TransitionRecord> p1Records = agent1.Record.ConstructTransitions(gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
-				List<GameRecord.TransitionRecord> p2Records = agent2.Record.ConstructTransitions(gameStats.PlayerB_Wins > gameStats.PlayerA_Wins);
-				replayMemory.Push(p1Records);
-				replayMemory.Push(p2Records);
+				var record = GameRecord.ConstructTransitions(agent1.Record, agent2.Record, gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
+				replayMemory.Push(record);
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				Console.WriteLine("Agent Error");
 				LogException(ex);
@@ -350,50 +327,74 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		}
 
-		private void LoopTrainingGames(object gamesPerTrainThread)
+		private void LoopTrainingGames(object numGames)
 		{
-			Console.WriteLine($"{(int)gamesPerTrainThread} GameStats per thread");
-			for (int i=0; i<(int)gamesPerTrainThread; i++)
+			int i = 0;
+			while (!stop && i < (int)numGames)
 			{
 				TrainingGame();
-				Console.WriteLine("Finished Game");
+				Console.WriteLine("Finished Training Game");
 
-				if (stop) break;
+				i++;
 			}
+
+			Console.WriteLine("Stopping Training Games");
 		}
 
-		private void TrainNetwork(int it)
+		private void TrainNetwork()
 		{
 			Scorer scorer = new Scorer(network);
 
-			for (int l = 0; l < numTrainLoops; l++)
+			//sample transitions
+			GameRecord.TransitionRecord[] transitions = replayMemory.Sample(batchSize);
+
+			//construct the targets
+			NDArray targets = scorer.CreateTargets(transitions);
+
+			//get the actions
+			GameRep[] actions = (from t in transitions select t.action).ToArray();
+
+			//train the network
+			float loss = network.TrainStep(actions, targets);
+
+			string message = $"Iteration {trainIteration}: Loss = {loss}";
+
+			logMutex.WaitOne();
+			using (StreamWriter w = File.AppendText(TRAINING_LOG_FILENAME))
 			{
-				//sample transitions
-				GameRecord.TransitionRecord[] transitions = replayMemory.Sample(batchSize);
-
-				//construct the targets
-				NDArray targets = scorer.CreateTargets(transitions);
-
-				//get the actions
-				GameRep[] actions = (from t in transitions select t.action).ToArray();
-
-				//train the network
-				float loss = network.TrainStep(actions, targets);
-
-				string output = $"Iteration {it}, Batch {l+1}: Loss = {loss}";
-				Console.WriteLine(output);
-
-				logMutex.WaitOne();
-				using (StreamWriter w = File.AppendText(TRAINING_LOG_FILENAME))
-				{
-					w.WriteLine(output);
-					w.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
-				}
-				logMutex.ReleaseMutex();
+				w.WriteLine(message);
+				w.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
 			}
+			logMutex.ReleaseMutex();
 		}
 
-		private void TestingLoop(object obj)
+		private void LoopTrainNetwork()
+		{
+			while (!stop && !pauseTrain)
+			{
+				TrainNetwork();
+
+				//at regular intervals, copy the ops
+				if (trainIteration % copyItr == 0)
+				{
+					Console.WriteLine("Copying online to target");
+					network.CopyOnlineToTarget();
+				}
+
+				//at regular intervals, save the model
+				if (trainIteration % saveItr == 0)
+				{
+					Console.WriteLine("Saving Model");
+					network.SaveModel(trainIteration);
+				}
+
+				trainIteration++;
+			}
+
+			Console.WriteLine("Stopping Network Training");
+		}
+
+		private void TestingThread(object obj)
 		{
 			for(int i=(int)obj; i<testingParams.Count; i+=numTestThreads)
 			{

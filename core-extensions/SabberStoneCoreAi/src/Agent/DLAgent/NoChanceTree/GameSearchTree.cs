@@ -215,8 +215,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			public (float, GameRep) Score(Scorer scorer, bool use_online)
 			{
 				NDArray scores = scorer.Q(State, Actions, use_online);
-				int bestScore = scores.max().GetValue<int>(0);
-				int bestIndex = scores.argmax();
+				float bestScore = np.max(scores).GetValue<float>(0);
+				int bestIndex = np.argmax(scores);
 				GameRep bestAction = Actions[bestIndex];
 				return (bestScore, bestAction);
 			}

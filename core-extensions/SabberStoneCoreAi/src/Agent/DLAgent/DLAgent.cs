@@ -21,7 +21,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private GameSearchTree tree;
 		private GameSearchTree root_tree;
 
-		private const float move_seconds = 75.0f;
+		private readonly float move_seconds;
 		private Stopwatch turn_watch;
 
 		private Random rnd;
@@ -91,7 +91,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				tree = new GameSearchTree(poGame, this);
 
 				//run the tree for up to half of the remaining turn time
-				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) * 2f / 3f;
+				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) * 0.66f;
 				tree.Run(t);
 
 				//save the first tree creates as the root tree
@@ -148,11 +148,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			turn_watch = new Stopwatch();
 		}
 
-		public DLAgent(Scorer scorer, float eps = 0f)
+		public DLAgent(Scorer scorer, float eps = 0f, float turn_secs = 70f)
 		{
 			Epsilon = Math.Clamp(eps, 0f, 1f);
 
 			this.scorer = scorer;
+
+			move_seconds = turn_secs;
 
 			rnd = new Random();
 
