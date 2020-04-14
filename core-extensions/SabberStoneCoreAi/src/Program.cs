@@ -28,6 +28,7 @@ using Npgsql;
 using System.IO;
 using SabberStoneCoreAi.Competition.Agents;
 using System.Text.RegularExpressions;
+using SabberStoneCoreAi.Meta;
 
 namespace SabberStoneCoreAi
 {
@@ -36,10 +37,13 @@ namespace SabberStoneCoreAi
 
 		private static void Main()
 		{
-			//ReplayMemoryDB db = new ReplayMemoryDB();
-			//db.Initialize();
-			//GameRecord.TransitionRecord[] trans = db.Sample(3);
-			//db.Close();
+			/*
+			ReplayMemoryDB db = new ReplayMemoryDB();
+			db.Load();
+			db.RecalculateTransitionRewards();
+			db.Close();
+			*/
+
 			/*
 			string test_str = "hello there hello there";
 			Match test_match = Regex.Match(test_str, "ello*");
@@ -94,21 +98,59 @@ namespace SabberStoneCoreAi
 			/*
 			ReplayMemoryDB db2 = new ReplayMemoryDB();
 			db2.Load();
-			GameRecord.TransitionRecord[] trans2 = db2.Sample(3);
+			GameRecord.TransitionRecord[] transitions = db2.Sample(20);
 			db2.Close();
 
 			GameEvalDQN network = new GameEvalDQN();
 			network.StartSession();
-			network.Initialize();
+			network.LoadModel();
 
-			DLAgent me = new DLAgent(new Scorer(network), turn_secs: 200f);
-			DLAgent opp = new DLAgent(new Scorer(network), turn_secs: 200f);
+			GameRep[] actions = (from t in transitions select t.action).ToArray();
+			NDArray rewards = np.array((from t in transitions select t.reward).ToArray());
+
+			NDArray online_scores = network.ScoreStates(true, actions);
+
+			NDArray offline_scores = network.ScoreStates(false, actions);
+
+			NDArray on_off_diff = np.abs(online_scores - offline_scores);
+			NDArray on_rew_diff = np.abs(online_scores - rewards);
+			NDArray off_rew_diff = np.abs(offline_scores - rewards);
+
+			network.EndSession();
+			*/
+
+
+			/*
+			Scorer scorer = new Scorer(network);
+
+			//construct the targets
+			NDArray targets = scorer.CreateTargets(transitions);
+
+			//get the actions
+			GameRep[] actions = (from t in transitions select t.action).ToArray();
+
+			//train the network
+			float loss = network.TrainStep(actions, targets);
+
+			Console.WriteLine(loss);
+
+			network.EndSession();
+			*/
+
+			/*
+			GameEvalDQN network = new GameEvalDQN();
+			network.StartSession();
+			network.LoadModel();
+
+			DLAgent me = new DLAgent(new Scorer(network));
+			AbstractAgent opp = new BotHeimbrodt();
 
 			var gameConfig = new GameConfig()
 			{
-				Player1HeroClass = CardClass.MAGE, //random classes
-				Player2HeroClass = CardClass.HUNTER,
-				FillDecks = true,
+				Player1HeroClass = CardClass.SHAMAN,
+				Player2HeroClass = CardClass.WARRIOR,
+				Player1Deck = Decks.MidrangeJadeShaman,
+				Player2Deck = Decks.AggroPirateWarrior,
 				Shuffle = true,
 				Logging = false
 			};
@@ -117,26 +159,23 @@ namespace SabberStoneCoreAi
 			bool valid = gameHandler.PlayGame();
 			GameStats stats = gameHandler.getGameStats();
 			stats.printResults();
+			
 
 			network.EndSession();
+			*/
 
 			//List<GameRecord.TransitionRecord> records = me.Record.ConstructTransitions(stats.PlayerA_Wins > stats.PlayerB_Wins);
-			List<GameRecord.TransitionRecord> records = GameRecord.ConstructTransitions(me.Record, opp.Record, stats.PlayerA_Wins > stats.PlayerB_Wins);
+			//List<GameRecord.TransitionRecord> records = GameRecord.ConstructTransitions(me.Record, opp.Record, stats.PlayerA_Wins > stats.PlayerB_Wins);
 
-			ReplayMemoryDB db = new ReplayMemoryDB();
-			//db.Load();
-			db.Push(records);
 
-			GameRecord.TransitionRecord[] trans = db.Sample(3);
-			db.Close();
-			*/
 
 			Trainer trainer = new Trainer();
 			//trainer.Warmup(6, false);
 			//trainer.Warmup(6, true);
-			trainer.Warmup(300, true);
-			//trainer.RunTrainingLoop(1,3);
+			//trainer.Warmup(60, true);
+			trainer.RunTrainingLoop(480);
 
+			Console.WriteLine("Done");
 			Console.ReadLine();
 		}
 	}

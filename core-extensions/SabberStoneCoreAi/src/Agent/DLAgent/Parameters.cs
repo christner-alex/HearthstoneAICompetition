@@ -7,9 +7,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 	class Parameters
 	{
 		//debug parameters
-		public static bool doCheckRep = false;
-		public static bool AgentPrintDebug = false;
-		public static bool MaxTreePrintDebug = false;
-		public static bool NodePrintDebug = false;
+		public const bool doCheckRep = false;
+		public const bool AgentPrintDebug = false;
+		public const bool MaxTreePrintDebug = false;
+		public const bool NodePrintDebug = false;
+		public const bool PrintGame = false;
 	}
 }

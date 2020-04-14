@@ -12,8 +12,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class GameRecord
 	{
-		public static float TurnDecay = -0.25f;
-
 		public struct TransitionRecord
 		{
 			public GameRep state;
@@ -113,6 +111,36 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return States.TakeLast(n).Select(x => x.BoardRep).ToList();
 		}
 
+		public static List<TransitionRecord> ConstructTransitions(GameRecord records, bool won)
+		{
+			List<TransitionRecord> transitions = new List<TransitionRecord>();
+
+			for (int i = 0; i < records.Actions.Count; i++)
+			{
+				TransitionRecord r = new TransitionRecord();
+				r.state = records.States[i].Copy();
+				r.action = records.Actions[i].Copy();
+				r.successor = i + 1 < records.States.Count ? records.States[i + 1].Copy() : null;
+				r.successor_actions = i + 1 < records.SuccessorTrees.Count ? records.SuccessorTrees[i + 1] : null;
+
+				if (i == records.Actions.Count - 1)
+				{
+					//if it was the last turn, set the score to the corresponding win/loss score
+					r.reward = won ? Scorer.WinScore : Scorer.LossScore;
+				}
+				else if (r.successor != null)
+				{
+					//otherwise, set the score to the opposite of what the second player gained on their next turn, and a decay to penalize too many turns
+					r.reward = Scorer.TransitionReward(r.action, r.successor);
+				}
+
+				transitions.Add(r);
+			}
+
+			return transitions;
+		}
+
+		/*
 		public static List<TransitionRecord> ConstructTransitions(GameRecord firstPlayer, GameRecord secondPlayer, bool firstWon)
 		{
 			if(firstPlayer.Actions.Count != secondPlayer.Actions.Count && firstPlayer.Actions.Count != secondPlayer.Actions.Count + 1)
@@ -138,7 +166,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				else if (i < secondPlayer.Actions.Count)
 				{
 					//otherwise, set the score to the opposite of what the second player gained on their next turn, and a decay to penalize too many turns
-					r.reward = - Scorer.TurnReward(secondPlayer.States[i], secondPlayer.Actions[i]) - TurnDecay;
+					r.reward = - Scorer.TurnReward(secondPlayer.States[i], secondPlayer.Actions[i]) - Scorer.TurnDecay;
 				}
 
 				transitions.Add(r);
@@ -160,7 +188,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				else if (i + 1 < firstPlayer.Actions.Count)
 				{
 					//otherwise, set the score to the opposite of what the first player gained on their next turn, and a decay to penalize too many turns
-					r.reward = - Scorer.TurnReward(firstPlayer.States[i+1], firstPlayer.Actions[i+1]) - TurnDecay;
+					r.reward = - Scorer.TurnReward(firstPlayer.States[i+1], firstPlayer.Actions[i+1]) - Scorer.TurnDecay;
 				}
 
 				transitions.Add(r);
@@ -168,5 +196,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			return transitions;
 		}
+		*/
 	}
 }

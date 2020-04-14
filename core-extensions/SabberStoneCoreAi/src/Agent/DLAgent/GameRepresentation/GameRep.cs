@@ -168,7 +168,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				player.BoardZone.Sum(p => p.AttackDamage), //player_total_atk
 				player.BoardZone.Sum(p => p.Health), //player_total_health
 				player.BoardZone.Where(p => p.HasTaunt).Sum(p => p.Health), //player taunt_health
-				player.Hero.TotalAttackDamage, //hero attack damage
+				player.Hero.Weapon != null ? 1 : 0, //hero attack damage
 				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0, //hero weapon durability
 				player.HeroPowerActivationsThisTurn,  //hero power activations
 				player.HandZone.Sum(p => p.Cost) //hand cost

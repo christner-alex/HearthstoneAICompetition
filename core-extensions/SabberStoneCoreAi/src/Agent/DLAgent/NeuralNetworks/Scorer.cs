@@ -10,79 +10,154 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 {
 	class Scorer
 	{
+		public static float WinScore = 100f;
 
-		public static float WinScore = 200f;
+		public static float LossScore = -100f;
 
-		public static float LossScore = -200f;
+		public static float TurnDecay = 1f;
 
-		public static NDArray friendly_diff_weights = np.array(
+		/*
+		public static NDArray friendly_diff_turn_weights = np.array(
 				0.01f, //player_health
-				0.5f, //player_base_mana
-				-0.5f, //player_remaining_mana
+				0.1f, //player_base_mana
+				-0.1f, //player_remaining_mana
 				0.1f, //player_hand_size
-				0.3f, //player_board_size
-				0.01f, //player_deck_size
+				0.2f, //player_board_size
+				0.0f, //player_deck_size
 				0.2f, //player_secret_size
 				0f, //graveyard size
-				0.03f, //player_total_atk
-				0.03f, //player_total_health
-				0.03f, //player_taunt_health
-				0.1f, //hero attack damage
-				0.1f, //hero weapon durability
+				0.01f, //player_total_atk
+				0.01f, //player_total_health
+				0.01f, //player_taunt_health
+				0.2f,  //has weapon
+				0.025f, //hero weapon durability
 				0f, //hero power activations
 				0f //hand cost
 			);
 
-		public static NDArray enemy_diff_weights = np.array(
+		public static NDArray enemy_diff_turn_weights = np.array(
 				-0.01f, //player_health
-				-0.5f, //player_base_mana
-				0.5f, //player_remaining_mana
+				-0.1f, //player_base_mana
+				0.1f, //player_remaining_mana
 				-0.1f, //player_hand_size
-				-0.3f, //player_board_size
-				-0.01f, //player_deck_size
+				-0.2f, //player_board_size
+				0.0f, //player_deck_size
 				-0.2f, //player_secret_size
 				0f, //graveyard size
-				-0.03f, //player_total_atk
-				-0.03f, //player_total_health
-				-0.03f, //player_taunt_health
-				-0.1f, //hero attack damage
-				-0.1f, //hero weapon durability
+				-0.01f, //player_total_atk
+				-0.01f, //player_total_health
+				-0.01f, //player_taunt_health
+				-0.2f,  //has weapon
+				-0.025f, //hero weapon durability
 				0f, //hero power activations
 				0f //hand cost
 			);
 
-		public static NDArray friendly_end_weights = np.array(
-				0f, //player_health
+		public static NDArray friendly_diff_transition_weights = np.array(
+				0.01f, //player_health
 				0f, //player_base_mana
 				0f, //player_remaining_mana
-				0f, //player_hand_size
-				0f, //player_board_size
-				0f, //player_deck_size
-				0f, //player_secret_size
+				0.1f, //player_hand_size
+				0.2f, //player_board_size
+				0.0f, //player_deck_size
+				0.2f, //player_secret_size
 				0f, //graveyard size
-				0f, //player_total_atk
-				0f, //player_total_health
-				0f, //player taunt_health
-				0f, //hero attack damage
-				0f, //hero weapon durability
+				0.01f, //player_total_atk
+				0.01f, //player_total_health
+				0.01f, //player_taunt_health
+				0.2f,  //has weapon
+				0.025f, //hero weapon durability
 				0f, //hero power activations
 				0f //hand cost
 			);
 
-		public static NDArray enemy_end_weights = np.array(
-				0f, //player_health
+		public static NDArray enemy_diff_transition_weights = np.array(
+				-0.01f, //player_health
 				0f, //player_base_mana
 				0f, //player_remaining_mana
-				0f, //player_hand_size
-				0f, //player_board_size
-				0f, //player_deck_size
-				0f, //player_secret_size
+				-0.1f, //player_hand_size
+				-0.2f, //player_board_size
+				0.0f, //player_deck_size
+				-0.2f, //player_secret_size
 				0f, //graveyard size
-				0f, //player_total_atk
-				0f, //player_total_health
-				0f, //player taunt_health
-				0f, //hero attack damage
-				0f, //hero weapon durability
+				-0.01f, //player_total_atk
+				-0.01f, //player_total_health
+				-0.01f, //player_taunt_health
+				-0.2f,  //has weapon
+				-0.025f, //hero weapon durability
+				0f, //hero power activations
+				0f //hand cost
+			);
+		*/
+
+		public static NDArray friendly_end_turn_weights = np.array(
+				0.01f, //player_health
+				0.1f, //player_base_mana
+				-0.1f, //player_remaining_mana
+				0.1f, //player_hand_size
+				0.2f, //player_board_size
+				0.0f, //player_deck_size
+				0.2f, //player_secret_size
+				0f, //graveyard size
+				0.01f, //player_total_atk
+				0.01f, //player_total_health
+				0.01f, //player_taunt_health
+				0.1f,  //has weapon
+				0.025f, //hero weapon durability
+				0f, //hero power activations
+				0f //hand cost
+			);
+
+		public static NDArray enemy_end_turn_weights = np.array(
+				-0.01f, //player_health
+				-0.1f, //player_base_mana
+				0f, //player_remaining_mana
+				-0.1f, //player_hand_size
+				-0.2f, //player_board_size
+				0.0f, //player_deck_size
+				-0.2f, //player_secret_size
+				0f, //graveyard size
+				-0.01f, //player_total_atk
+				-0.01f, //player_total_health
+				-0.01f, //player_taunt_health
+				-0.1f,  //has weapon
+				-0.025f, //hero weapon durability
+				0f, //hero power activations
+				0f //hand cost
+			);
+
+		public static NDArray friendly_end_transition_weights = np.array(
+				0.01f, //player_health
+				0f, //player_base_mana
+				0f, //player_remaining_mana
+				0.1f, //player_hand_size
+				0.2f, //player_board_size
+				0.0f, //player_deck_size
+				0.2f, //player_secret_size
+				0f, //graveyard size
+				0.01f, //player_total_atk
+				0.01f, //player_total_health
+				0.01f, //player_taunt_health
+				0.1f,  //has weapon
+				0.025f, //hero weapon durability
+				0f, //hero power activations
+				0f //hand cost
+			);
+
+		public static NDArray enemy_end_transition_weights = np.array(
+				-0.01f, //player_health
+				0f, //player_base_mana
+				0f, //player_remaining_mana
+				-0.1f, //player_hand_size
+				-0.2f, //player_board_size
+				0.0f, //player_deck_size
+				-0.2f, //player_secret_size
+				0f, //graveyard size
+				-0.01f, //player_total_atk
+				-0.01f, //player_total_health
+				-0.01f, //player_taunt_health
+				-0.1f,  //has weapon
+				-0.025f, //hero weapon durability
 				0f, //hero power activations
 				0f //hand cost
 			);
@@ -116,7 +191,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			NDArray enemy_end_board = end_board[1];
 
 			//return the win/loss scores if health is 0 or less
-			if(friendly_end_board.GetValue<float>(0) <= 0 )
+			if(friendly_end_board.GetValue<float>(0) <= 0)
 			{
 				return LossScore;
 			}
@@ -125,19 +200,28 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				return WinScore;
 			}
 
+			/*
 			//vectors representing the change in each board
 			NDArray friendly_difference = friendly_end_board - friendly_start_board;
 			NDArray enemy_difference = enemy_end_board - enemy_start_board;
 
-			NDArray result = friendly_difference.dot(friendly_diff_weights)
-				+ enemy_difference.dot(enemy_diff_weights)
-				+ friendly_end_board.dot(friendly_end_weights)
-				+ enemy_end_board.dot(enemy_end_weights);
+			NDArray result = friendly_difference.dot(friendly_diff_turn_weights)
+				+ enemy_difference.dot(enemy_diff_turn_weights);
+			*/
+
+			NDArray result = friendly_end_board.dot(friendly_end_turn_weights)
+				+ enemy_end_board.dot(enemy_end_turn_weights);
+
 			return result.astype(NPTypeCode.Float).GetValue<float>(0);
 		}
 
 		public static NDArray TurnReward(GameRep[] start_states, GameRep[] end_states)
 		{
+			if(start_states.Length != end_states.Length)
+			{
+				throw new ArgumentException("start_states and end_states must have the same length");
+			}
+
 			var l = from int i in Enumerable.Range(0, start_states.Length)
 					select TurnReward(start_states[i], end_states[i]);
 			return np.array(l.ToArray()).astype(NPTypeCode.Float);
@@ -190,20 +274,53 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return Q(start_states, end_states, use_online);
 		}
 
-		/*
 		/// <summary>
-		/// Calculate the score observed from a (state,action,state) transistion, which is the difference between
-		/// the reward gained by the current player on their turn and the opposite of the reward gained by the
-		/// opposing player on their turn.
+		/// Given an action and the successor starte afterward, calculate the reward gained between that time.
 		/// </summary>
-		/// <param name="turn1start">The GameRep representing the start of the turn meant to be scores</param>
-		/// <param name="turn1end">The GameRep representing the result of taking the end turn action from p1_start</param>
-		/// <param name="turn1end">The GameRep representing the start of the players turn after opponent ended their turn from p1_end</param>
-		public float ScoreTransition(GameRep turn1start, GameRep turn1end, GameRep turn2start)
+		/// <param name="action"></param>
+		/// <param name="successor"></param>
+		/// <returns></returns>
+		public static float TransitionReward(GameRep action, GameRep successor)
 		{
-			return TurnReward(turn1start, turn1end) - TurnReward(turn1end, turn2start);
+			if(action == null || successor == null)
+			{
+				throw new ArgumentNullException("The action and the successor cannot be null");
+			}
+
+			NDArray action_board = action.BoardRep.astype(NPTypeCode.Float);
+			NDArray successor_board = successor.BoardRep.astype(NPTypeCode.Float);
+
+			NDArray friendly_action_board = action_board[0];
+			NDArray enemy_action_board = action_board[1];
+			NDArray friendly_successor_board = successor_board[0];
+			NDArray enemy_successor_board = successor_board[1];
+
+			//return the win/loss scores if health is 0 or less
+			if (friendly_action_board.GetValue<float>(0) <= 0 || friendly_successor_board.GetValue<float>(0) <= 0)
+			{
+				return LossScore;
+			}
+			else if (enemy_action_board.GetValue<float>(0) <= 0 || enemy_successor_board.GetValue<float>(0) <= 0)
+			{
+				return WinScore;
+			}
+
+			/*
+			//vectors representing the change in each board
+			NDArray friendly_difference = friendly_successor_board - friendly_action_board;
+			NDArray enemy_difference = enemy_successor_board - enemy_action_board;
+
+			NDArray result = friendly_difference.dot(friendly_diff_transition_weights)
+				+ enemy_difference.dot(enemy_diff_transition_weights)
+				- TurnDecay;
+			*/
+
+			NDArray result = friendly_successor_board.dot(friendly_end_transition_weights)
+				+ enemy_successor_board.dot(enemy_end_transition_weights)
+				- TurnDecay;
+
+			return result.astype(NPTypeCode.Float).GetValue<float>(0);
 		}
-		*/
 
 		/// <summary>
 		/// Use the target portion of the network to create target values for each of the transitions

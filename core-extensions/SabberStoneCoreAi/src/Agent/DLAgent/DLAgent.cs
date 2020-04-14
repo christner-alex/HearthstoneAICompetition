@@ -53,6 +53,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//if the watch is not running (i.e. if it is the start of your turn)...
 			if (!turn_watch.IsRunning)
 			{
+				//temp
+				//if(Parameters.PrintGame) Console.WriteLine("StartTurn: {0}", poGame.FullPrint());
+
 				turn_watch.Start();
 
 				do_random = false;
@@ -111,6 +114,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				do_random = true;
 			}
 
+			//if (Parameters.PrintGame) Console.WriteLine("Move: {0}", move.FullPrint());
+
 			//if the move is an end turn action, reset the turn watch and save the action taken
 			if (move.PlayerTaskType == PlayerTaskType.END_TURN)
 			{
@@ -122,6 +127,16 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//delete the trees
 				tree = null;
 				root_tree = null;
+
+				/*
+				//temp
+				if (Parameters.PrintGame)
+				{
+					Console.WriteLine("EndTurn: {0}", poGame.FullPrint());
+					Console.WriteLine();
+					Console.WriteLine("=================================");
+				}
+				*/
 			}
 
 			return move;

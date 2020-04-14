@@ -28,16 +28,16 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private ReplayMemoryDB replayMemory;
 
 		private const int numDataThreads = 3;
-		private const int numTrainGamesPerThread = 50;
 
-		private const int saveItr = 100;
-		private const int copyItr = 500;
+		private const int saveItr = 20;
+		private const int copyItr = 250;
+		private const int testItr = 500;
 
-		private const int batchSize = 50;
+		private const int batchSize = 32;
 
-		private const float max_eps = 0.5f;
-		private const float min_eps = 0.01f;
-		private const int epsDecaySteps = 1000;
+		private const float max_eps = 0.25f;
+		private const float min_eps = 0.05f;
+		private const int epsDecaySteps = 5000;
 
 		private const int numTestGamesPerBot = 20;
 		private const int numTestThreads = 3;
@@ -84,22 +84,19 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			testingParams = new List<TestingParams>(testAgents.Count * testDecks.Count * testDecks.Count);
 			foreach ((Func<AbstractAgent>, string) makeAgent in testAgents)
 			{
-				foreach ((List<Card>, CardClass) pDeck in testDecks)
+				foreach ((List<Card>, CardClass) oDeck in testDecks)
 				{
-					foreach ((List<Card>, CardClass) oDeck in testDecks)
+					GameConfig conf = new GameConfig()
 					{
-						GameConfig conf = new GameConfig()
-						{
-							Player1HeroClass = pDeck.Item2,
-							Player2HeroClass = oDeck.Item2,
-							Player1Deck = pDeck.Item1,
-							Player2Deck = oDeck.Item1,
-							Shuffle = true,
-							Logging = false
-						};
-						TestingParams p = new TestingParams(makeAgent.Item1, conf, $"DLAgent:{Enum.GetName(typeof(CardClass), pDeck.Item2)}", $"{makeAgent.Item2}:{Enum.GetName(typeof(CardClass), oDeck.Item2)}");
-						testingParams.Add(p);
-					}
+						Player1HeroClass = CardClass.SHAMAN,
+						Player2HeroClass = oDeck.Item2,
+						Player1Deck = Decks.MidrangeJadeShaman,
+						Player2Deck = oDeck.Item1,
+						Shuffle = true,
+						Logging = false
+					};
+					TestingParams p = new TestingParams(makeAgent.Item1, conf, "DLAgent", $"{makeAgent.Item2}:{Enum.GetName(typeof(CardClass), oDeck.Item2)}");
+					testingParams.Add(p);
 				}
 			}
 
@@ -216,27 +213,31 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				while(true)
 				{
+					pauseTrain = false;
+
 					//create threads to play training games in
 					Thread[] trainGameThreads = new Thread[numDataThreads];
 					for (int i = 0; i < numDataThreads; i++)
 					{
 						trainGameThreads[i] = new Thread(LoopTrainingGames);
-						trainGameThreads[i].Start(numTrainGamesPerThread);
+						trainGameThreads[i].Start(int.MaxValue);
 					}
 
 					//create a thread to update the network
 					Thread trainNetworkThread = new Thread(LoopTrainNetwork);
 					trainNetworkThread.Start();
 
+					//wait the train thread to stop
+					trainNetworkThread.Join();
+
+					//tell the games to stop
+					pauseTrain = true;
+
 					//wait for each training thread to join
 					foreach (Thread t in trainGameThreads)
 					{
 						t.Join();
 					}
-
-					//tell the train thread to stop
-					pauseTrain = true;
-					trainNetworkThread.Join();
 
 					if (stop) break;
 
@@ -265,8 +266,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					{
 						t.Join();
 					}
-
-					pauseTrain = false;
 				}
 			}
 			catch (Exception ex)
@@ -293,8 +292,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			try
 			{
 				float currentEps = Math.Max(min_eps, max_eps - (max_eps - min_eps) * trainIteration / epsDecaySteps);
-				DLAgent agent1 = new DLAgent(new Scorer(network), eps: currentEps);
-				DLAgent agent2 = new DLAgent(new Scorer(network), eps: currentEps);
+				DLAgent agent1 = new DLAgent(new Scorer(network), eps: currentEps, turn_secs: 90f);
+				DLAgent agent2 = new DLAgent(new Scorer(network), eps: currentEps, turn_secs: 90f);
+
+				Console.WriteLine($"Starting Training Game: Eps={currentEps}");
 
 				var gameConfig = new GameConfig()
 				{
@@ -311,12 +312,18 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				//discard drawn games or games with exceptions
 				if(gameStats == null || gameStats.PlayerA_Wins == gameStats.PlayerB_Wins || gameStats.PlayerA_Exceptions > 0 || gameStats.PlayerB_Exceptions > 0)
 				{
+					Console.WriteLine("==============================");
 					Console.WriteLine("Discarding game");
+					gameStats.printResults();
+					Console.WriteLine("==============================");
 					return;
 				}
 
 				//save the transitions
-				var record = GameRecord.ConstructTransitions(agent1.Record, agent2.Record, gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
+				//var record = GameRecord.ConstructTransitions(agent1.Record, agent2.Record, gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
+				var record = GameRecord.ConstructTransitions(agent1.Record, gameStats.PlayerA_Wins > gameStats.PlayerB_Wins);
+				var record2 = GameRecord.ConstructTransitions(agent2.Record, gameStats.PlayerA_Wins < gameStats.PlayerB_Wins);
+				record.AddRange(record2);
 				replayMemory.Push(record);
 			}
 			catch (Exception ex)
@@ -330,7 +337,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private void LoopTrainingGames(object numGames)
 		{
 			int i = 0;
-			while (!stop && i < (int)numGames)
+			while (!stop && !pauseTrain && i < (int)numGames)
 			{
 				TrainingGame();
 				Console.WriteLine("Finished Training Game");
@@ -343,36 +350,47 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		private void TrainNetwork()
 		{
-			Scorer scorer = new Scorer(network);
-
-			//sample transitions
-			GameRecord.TransitionRecord[] transitions = replayMemory.Sample(batchSize);
-
-			//construct the targets
-			NDArray targets = scorer.CreateTargets(transitions);
-
-			//get the actions
-			GameRep[] actions = (from t in transitions select t.action).ToArray();
-
-			//train the network
-			float loss = network.TrainStep(actions, targets);
-
-			string message = $"Iteration {trainIteration}: Loss = {loss}";
-
-			logMutex.WaitOne();
-			using (StreamWriter w = File.AppendText(TRAINING_LOG_FILENAME))
+			try
 			{
-				w.WriteLine(message);
-				w.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
+				Scorer scorer = new Scorer(network);
+
+				//sample transitions
+				GameRecord.TransitionRecord[] transitions = replayMemory.Sample(batchSize);
+
+				//construct the targets
+				NDArray targets = scorer.CreateTargets(transitions);
+
+				//get the actions
+				GameRep[] actions = (from t in transitions select t.action).ToArray();
+
+				//train the network
+				float loss = network.TrainStep(actions, targets);
+
+				string message = $"Iteration {trainIteration}: Loss = {loss}";
+				Console.WriteLine(message);
+
+				logMutex.WaitOne();
+				using (StreamWriter w = File.AppendText(TRAINING_LOG_FILENAME))
+				{
+					w.WriteLine(message);
+					w.WriteLine($"{DateTime.Now.ToLongTimeString()} {DateTime.Now.ToLongDateString()}");
+				}
+				logMutex.ReleaseMutex();
 			}
-			logMutex.ReleaseMutex();
+			catch (Exception ex)
+			{
+				Console.WriteLine("Network Train Error");
+				LogException(ex);
+			}
 		}
 
 		private void LoopTrainNetwork()
 		{
-			while (!stop && !pauseTrain)
+			while (!stop && trainIteration % testItr != 0)
 			{
 				TrainNetwork();
+
+				trainIteration++;
 
 				//at regular intervals, copy the ops
 				if (trainIteration % copyItr == 0)
@@ -387,8 +405,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					Console.WriteLine("Saving Model");
 					network.SaveModel(trainIteration);
 				}
-
-				trainIteration++;
 			}
 
 			Console.WriteLine("Stopping Network Training");
@@ -409,7 +425,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					//run games
 					for (int g = 0; g < numTestGamesPerBot; g++)
 					{
-						GameStats gameStats = PlayGame(new DLAgent(new Scorer(network)), p.opponent(), p.gameConfig);
+						DLAgent me = new DLAgent(new Scorer(network));
+						GameStats gameStats = PlayGame(me, p.opponent(), p.gameConfig);
 						if (gameStats != null && gameStats.PlayerA_Exceptions == 0 && gameStats.PlayerB_Exceptions == 0)
 						{
 							games++;
