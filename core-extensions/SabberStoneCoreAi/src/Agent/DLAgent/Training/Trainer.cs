@@ -33,7 +33,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private const int copyItr = 250;
 		private const int testItr = 500;
 
-		private const int batchSize = 32;
+		private const int batchSize = 30;
 
 		private const float max_eps = 0.25f;
 		private const float min_eps = 0.05f;
@@ -120,7 +120,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		/// Initialize the Network and the ReplayMemory
 		/// </summary>
 		/// <param name="load">If true, the network and the replay memory will be loaded from previous iterations. If false, they will be initialized from scratch.</param>
-		private void InitializeObjects(bool load)
+		private void InitializeObjects(bool load, string ckpt_file = null)
 		{
 			network.StartSession();
 
@@ -132,7 +132,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			else
 			{
 				//otherwise, load the corresponding checkpoint
-				network.LoadModel();
+				if(ckpt_file == null)
+				{
+					network.LoadModel();
+				}
+				else
+				{
+					network.LoadModel(ckpt_file);
+				}
 
 				//reload the replay buffer
 				replayMemory.Load();
@@ -198,13 +205,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 		}
 
-		public void RunTrainingLoop(int startIter)
+		public void RunTrainingLoop(int startIter, string ckpt_file = null)
 		{
 			trainIteration = Math.Max(1, startIter);
 
 			//initialize the objects, making sure to load a model and replay memory
 			//already created from warmups
-			InitializeObjects(true);
+			InitializeObjects(true, ckpt_file);
 
 			try
 			{

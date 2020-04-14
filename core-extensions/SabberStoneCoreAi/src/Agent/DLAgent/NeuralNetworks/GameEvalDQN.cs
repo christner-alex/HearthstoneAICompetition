@@ -173,7 +173,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		public NDArray ScoreStates(bool use_online, params GameRep[] reps)
 		{
 			var input = UnwrapReps(reps);
-			NDArray result = np.zeros(input.HandIn.shape[0]);
+			NDArray result = np.zeros(new Shape(input.HandIn.Shape[0]), NPTypeCode.Float);
 			Tensor score_op = use_online ? online_pred : target_pred;
 
 			mutex.WaitOne();
@@ -186,7 +186,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			}
 
 			mutex.ReleaseMutex();
-			return result.flat;
+			return result.astype(NPTypeCode.Float).flat;
 		}
 
 		public float TrainStep(GameRep[] training_points, NDArray targets)

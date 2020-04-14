@@ -95,22 +95,24 @@ namespace SabberStoneCoreAi
 			}
 			*/
 
-			/*
-			ReplayMemoryDB db2 = new ReplayMemoryDB();
-			db2.Load();
-			GameRecord.TransitionRecord[] transitions = db2.Sample(20);
-			db2.Close();
+			ReplayMemoryDB replayMemory = new ReplayMemoryDB();
+			replayMemory.Load();
+			GameRecord.TransitionRecord[] transitions = replayMemory.Sample(20);
+			replayMemory.Close();
 
 			GameEvalDQN network = new GameEvalDQN();
 			network.StartSession();
-			network.LoadModel();
+			network.LoadModel("GameEvalDQN\\model.ckpt-440");
 
+			/*
 			GameRep[] actions = (from t in transitions select t.action).ToArray();
 			NDArray rewards = np.array((from t in transitions select t.reward).ToArray());
 
 			NDArray online_scores = network.ScoreStates(true, actions);
 
 			NDArray offline_scores = network.ScoreStates(false, actions);
+
+			NDArray targets = rewards + 0.99 * offline_scores;
 
 			NDArray on_off_diff = np.abs(online_scores - offline_scores);
 			NDArray on_rew_diff = np.abs(online_scores - rewards);
@@ -167,13 +169,24 @@ namespace SabberStoneCoreAi
 			//List<GameRecord.TransitionRecord> records = me.Record.ConstructTransitions(stats.PlayerA_Wins > stats.PlayerB_Wins);
 			//List<GameRecord.TransitionRecord> records = GameRecord.ConstructTransitions(me.Record, opp.Record, stats.PlayerA_Wins > stats.PlayerB_Wins);
 
+			Scorer scorer = new Scorer(network);
 
+			//construct the targets
+			NDArray targets = scorer.CreateTargets(transitions);
 
-			Trainer trainer = new Trainer();
+			//get the actions
+			GameRep[] actions = (from t in transitions select t.action).ToArray();
+
+			//train the network
+			float loss = network.TrainStep(actions, targets);
+
+			network.EndSession();
+
+			//Trainer trainer = new Trainer();
 			//trainer.Warmup(6, false);
 			//trainer.Warmup(6, true);
 			//trainer.Warmup(60, true);
-			trainer.RunTrainingLoop(480);
+			//trainer.RunTrainingLoop(480, "GameEvalDQN\\model.ckpt-480");
 
 			Console.WriteLine("Done");
 			Console.ReadLine();
