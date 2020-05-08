@@ -430,7 +430,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//return it and its score
 			if (FoundLethal)
 			{
-				return (Agent.scorer.WinScore, lethal_node);
+				return (Scorer.WinScore, lethal_node);
 			}
 
 			//if no end turn or chance node exist, return a score of 0 and null for the state

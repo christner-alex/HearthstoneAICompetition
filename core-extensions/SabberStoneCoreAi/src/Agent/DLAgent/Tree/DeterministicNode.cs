@@ -147,11 +147,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			if(IsLethal)
 			{
-				return scorer.WinScore;
+				return Scorer.WinScore;
 			}
 			else if(IsLoss)
 			{
-				return scorer.LossScore;
+				return Scorer.LossScore;
 			}
 			else
 			{

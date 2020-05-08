@@ -9,7 +9,6 @@ using SabberStoneCore.Model;
 using System.Linq;
 using System.Diagnostics;
 using SabberStoneCore.Model.Entities;
-using static SabberStoneCoreAi.Agent.DLAgent.MaxTree;
 using System.IO;
 using Newtonsoft.Json;
 
@@ -19,10 +18,10 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 	{
 		public Scorer scorer;
 
-		private MaxTree tree;
-		private MaxTree root_tree;
+		private GameSearchTree tree;
+		private GameSearchTree root_tree;
 
-		private const float move_seconds = 75.0f;
+		private readonly float move_seconds;
 		private Stopwatch turn_watch;
 
 		private Random rnd;
@@ -54,6 +53,9 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			//if the watch is not running (i.e. if it is the start of your turn)...
 			if (!turn_watch.IsRunning)
 			{
+				//temp
+				//if(Parameters.PrintGame) Console.WriteLine("StartTurn: {0}", poGame.FullPrint());
+
 				turn_watch.Start();
 
 				do_random = false;
@@ -62,6 +64,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				StartTurnState = poGame;
 				StartTurnRep = new GameRep(poGame, Record);
 
+				//add the start turn to the record
 				Record.PushState(StartTurnRep.Copy());
 
 				//create a new tree for the start of the turn
@@ -79,7 +82,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			while (!do_random)
 			{
 				//if the tree exists, get the next move it says to do
-				move = tree?.GetNextMove(poGame);
+				move = tree?.NextMove(poGame);
 
 				//if a move has been found or we are out of time, break out of the loop
 				if (move != null || turn_watch.Elapsed.TotalSeconds > move_seconds)
@@ -87,13 +90,11 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 					break;
 				}
 
-				//if a subtree exploring the given state already exists, take it
-				tree = tree?.FindSubtree(poGame);
-				//otherwise, create a new tree with the given state as the root
-				tree = tree ?? new MaxTree(poGame, agent: this);
+				//create a new tree with the current state as the root
+				tree = new GameSearchTree(poGame, this);
 
 				//run the tree for up to half of the remaining turn time
-				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) * 2f / 3f;
+				float t = (float)(move_seconds - turn_watch.Elapsed.TotalSeconds) * 0.66f;
 				tree.Run(t);
 
 				//save the first tree creates as the root tree
@@ -113,6 +114,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				do_random = true;
 			}
 
+			//if (Parameters.PrintGame) Console.WriteLine("Move: {0}", move.FullPrint());
+
 			//if the move is an end turn action, reset the turn watch and save the action taken
 			if (move.PlayerTaskType == PlayerTaskType.END_TURN)
 			{
@@ -120,6 +123,20 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 				//record the end of turn state
 				Record.PushAction(poGame, root_tree);
+
+				//delete the trees
+				tree = null;
+				root_tree = null;
+
+				/*
+				//temp
+				if (Parameters.PrintGame)
+				{
+					Console.WriteLine("EndTurn: {0}", poGame.FullPrint());
+					Console.WriteLine();
+					Console.WriteLine("=================================");
+				}
+				*/
 			}
 
 			return move;
@@ -146,11 +163,13 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			turn_watch = new Stopwatch();
 		}
 
-		public DLAgent(Scorer scorer, float eps = 0f)
+		public DLAgent(Scorer scorer, float eps = 0f, float turn_secs = 70f)
 		{
 			Epsilon = Math.Clamp(eps, 0f, 1f);
 
 			this.scorer = scorer;
+
+			move_seconds = turn_secs;
 
 			rnd = new Random();
 

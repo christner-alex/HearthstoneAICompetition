@@ -34,8 +34,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 
 		public const int minion_vec_len = 14;
-		public const int card_vec_len = 7;
-		public const int board_vec_len = 13;
+		public const int card_vec_len = 14;
+		public const int board_vec_len = 15;
 
 		public const int max_minions = 14;
 		public const int max_side_minions = 7;
@@ -154,7 +154,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			return ((IStructuralEquatable)FlatRep.ToArray<int>()).GetHashCode(EqualityComparer<int>.Default);
 		}
 
-		private static NDArray BoardSideToVec(POGame.POGame game, Controller player)
+		private static NDArray BoardSideToVec(Controller player)
 		{
 			return np.array(
 				player.Hero.Health + player.Hero.Armor, //player_health
@@ -164,12 +164,14 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				player.BoardZone.Count, //player_board_size
 				player.DeckZone.Count, //player_deck_size
 				player.SecretZone.Count, //player_secret_size
+				player.GraveyardZone.Count, //graveyard size
 				player.BoardZone.Sum(p => p.AttackDamage), //player_total_atk
 				player.BoardZone.Sum(p => p.Health), //player_total_health
 				player.BoardZone.Where(p => p.HasTaunt).Sum(p => p.Health), //player taunt_health
-				player.Hero.Weapon != null ? player.Hero.Weapon.AttackDamage : 0, //player_weapon_atk
-				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0, //player_weapon_dur
-				player.Game.Turn // player turn
+				player.Hero.Weapon != null ? 1 : 0, //hero attack damage
+				player.Hero.Weapon != null ? player.Hero.Weapon.Durability : 0, //hero weapon durability
+				player.HeroPowerActivationsThisTurn,  //hero power activations
+				player.HandZone.Sum(p => p.Cost) //hand cost
 			);
 		}
 
@@ -183,8 +185,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			Controller current_player = game.CurrentPlayer;
 			Controller opponent = current_player.Opponent;
 
-			NDArray friendly = BoardSideToVec(game, current_player);
-			NDArray enemy = BoardSideToVec(game, opponent);
+			NDArray friendly = BoardSideToVec(current_player);
+			NDArray enemy = BoardSideToVec(opponent);
 
 			NDArray result = np.stack(new NDArray[] { friendly, enemy });
 			return result;
@@ -226,53 +228,93 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 				return result;
 			}
 
-			/*
-			// Get the first three numbers in the text
-			string text = card.Text.ToLower();
-			string[] numbers = Regex.Split(text, @"\D+");
-			NDArray nums = np.zeros(new Shape(3), NPTypeCode.Int32);
-			for(int i=0; i<numbers.Length && i<3; i++)
-			{
-				if (!string.IsNullOrEmpty(numbers[i]))
-				{
-					nums[i] = int.Parse(numbers[i]);
-				}
-			}
-			*/
+			int cost = 0;
+			int atk = 0;
+			int def = 0;
 
-			int a = 0;
-			int b = 0;
-			int c = 0;
+			bool specialSpell = false;
+
 			switch (card.Type)
 			{
 				case CardType.MINION:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					card.Tags.TryGetValue(GameTag.ATK, out b);
-					card.Tags.TryGetValue(GameTag.HEALTH, out c);
+					card.Tags.TryGetValue(GameTag.ATK, out atk);
+					card.Tags.TryGetValue(GameTag.HEALTH, out def);
 					result[0] = 1;
 					break;
 				case CardType.SPELL:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					b = 0;
-					c = 0;
 					result[1] = 1;
+					specialSpell = card.IsSecret || card.IsQuest;
 					break;
 				case CardType.WEAPON:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					card.Tags.TryGetValue(GameTag.ATK, out b);
-					card.Tags.TryGetValue(GameTag.DURABILITY, out c);
+					card.Tags.TryGetValue(GameTag.ATK, out atk);
+					card.Tags.TryGetValue(GameTag.DURABILITY, out def);
 					result[2] = 1;
 					break;
 				case CardType.HERO:
-					card.Tags.TryGetValue(GameTag.COST, out a);
-					b = 0;
-					card.Tags.TryGetValue(GameTag.ARMOR, out c);
+					card.Tags.TryGetValue(GameTag.ARMOR, out def);
 					result[3] = 1;
 					break;
 			}
+			card.Tags.TryGetValue(GameTag.COST, out cost);
 
-			result["4:"] = np.array(a, b, c);
-			//result["7:"] = nums;
+			int draw = 0;
+			int damage = 0;
+			int restore = 0;
+
+			bool start_turn = false;
+			bool end_turn = false;
+			bool whenever = false;
+			bool when = false;
+			bool after = false;
+			bool battlecry = false;
+			bool inspire = false;
+
+			int aoe = 0;
+
+			if (card.Text != null)
+			{
+				string text = card.Text.ToLower();
+
+				battlecry = text.Contains("<b>battlecry:</b>");
+				inspire = text.Contains("<b>inspire:</b>");
+				start_turn = text.Contains("at the start");
+				end_turn = text.Contains("at the end");
+				whenever = text.Contains("whenever");
+				when = text.Contains("when ");
+				after = text.Contains("after");
+				aoe = text.Contains("to all") ? 1 : 0;
+
+
+				Match draw_match = Regex.Match(text, "draw\\s.*\\scard");
+				Match damage_match = Regex.Match(text, "deal\\s.*\\sdamage");
+				Match heal_match = Regex.Match(text, "restore\\s.*\\shealth");
+
+				if (draw_match.Success)
+				{
+					string amount = draw_match.Value.Split(" ")[1];
+					if (amount.Equals("a")) draw = 1;
+					else if (amount.Any(char.IsDigit)) draw = Int32.Parse(Regex.Match(amount, "[0-9]+").Value);
+				}
+				if (damage_match.Success)
+				{
+					string amount = damage_match.Value.Split(" ")[1];
+					if (amount.Equals("a")) damage = 1;
+					else if (amount.Any(char.IsDigit)) damage = Int32.Parse(Regex.Match(amount, "[0-9]+").Value);
+				}
+				if(heal_match.Success)
+				{
+					string amount = heal_match.Value.Split(" ")[1];
+					if (amount.Equals("a")) restore = 1;
+					else if (amount.Any(char.IsDigit)) restore = Int32.Parse(Regex.Match(amount, "[0-9]+").Value);
+				}
+			}
+
+			int instant_effects = new bool[] { battlecry, card.Charge, card.Rush, card.ChooseOne, card.Combo }.Count(v => v);
+			int continuous_triggers = new bool[] { start_turn, end_turn, whenever, after, inspire }.Count(v => v);
+			int enchantments = new bool[] {card.DivineShield, card.CantBeTargetedBySpells, card.Echo, card.Taunt,
+				card.LifeSteal, card.Poisonous, card.Stealth, card.Windfury, card.Deathrattle, card.SpellPower > 0 }.Count(v => v);
+
+			result["4:"] = np.array(cost, atk, def, draw, damage, restore, aoe, instant_effects, continuous_triggers, enchantments);
 
 			return result;
 		}

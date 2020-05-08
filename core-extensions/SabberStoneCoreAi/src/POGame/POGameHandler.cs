@@ -22,7 +22,7 @@ namespace SabberStoneCoreAi.POGame
 		private GameStats gameStats;
 		private static readonly Random Rnd = new Random();
 		private bool repeatDraws=false;
-		private int maxTurns=50;
+		private int maxTurns=80; //edited to ensure full game
 
 
 		public POGameHandler(GameConfig gameConfig, AbstractAgent player1, AbstractAgent player2,  bool setupHeroes = true, bool repeatDraws=false)

@@ -51,6 +51,8 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 		private Operation init;
 		private Saver saver;
 
+		private const int max_batch_size = 256;
+
 		public GameEvalDQN()
 		{
 			minions_input_row = GameRep.max_side_minions * GameRep.max_side_minions;
@@ -64,7 +66,7 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 			target = tf.placeholder(TF_DataType.TF_FLOAT, new TensorShape(-1), name: "target_input");
 
-			initializer = tf.random_normal_initializer(stddev: 0.1f);
+			initializer = tf.random_normal_initializer(stddev: 0.1f, dtype: TF_DataType.TF_FLOAT);
 
 			//create identical graphs for the online network and the target network
 			(online_pred, online_vars) = CreateSubgraph("online");
@@ -170,21 +172,29 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 
 		public NDArray ScoreStates(bool use_online, params GameRep[] reps)
 		{
+			var input = UnwrapReps(reps);
+			NDArray result = np.zeros(new Shape(input.HandIn.Shape[0]), NPTypeCode.Float);
+			Tensor score_op = use_online ? online_pred : target_pred;
+
 			mutex.WaitOne();
 
-			var input = UnwrapReps(reps);
-			Tensor score_op = use_online ? online_pred : target_pred;
-			var result = sess.run(score_op, new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn));
+			for (int i = 0; i < input.HandIn.shape[0]; i += max_batch_size)
+			{
+				string slice = $"{i}:{i + max_batch_size}";
+				var segment = sess.run(score_op, new FeedItem(hand_input, input.HandIn[slice]), new FeedItem(minions_input, input.MinionIn[slice]), new FeedItem(board_hist_input, input.HistoryIn[slice]));
+				result[slice] = segment.flat;
+			}
 
 			mutex.ReleaseMutex();
-			return result.flat;
+			return result.astype(NPTypeCode.Float).flat;
 		}
 
 		public float TrainStep(GameRep[] training_points, NDArray targets)
 		{
+			var input = UnwrapReps(training_points);
+
 			mutex.WaitOne();
 
-			var input = UnwrapReps(training_points);
 			FeedItem[] items = new FeedItem[4] { new FeedItem(hand_input, input.HandIn), new FeedItem(minions_input, input.MinionIn), new FeedItem(board_hist_input, input.HistoryIn), new FeedItem(target, targets) };
 			sess.run(train_op, items);
 			float l = loss.eval(sess, items).GetValue<float>(0);
@@ -199,7 +209,6 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			mutex.WaitOne();
 
 			sess.run(copy_ops);
-			Console.WriteLine("Copied"); //temporary
 
 			mutex.ReleaseMutex();
 		}
@@ -213,11 +222,12 @@ namespace SabberStoneCoreAi.Agent.DLAgent
 			mutex.ReleaseMutex();
 		}
 
-		public void LoadModel()
+		public void LoadModel(string ckpt_filename = null)
 		{
 			mutex.WaitOne();
 
-			saver.restore(sess, tf.train.latest_checkpoint("GameEvalDQN"));
+			string filename = ckpt_filename ?? tf.train.latest_checkpoint("GameEvalDQN");
+			saver.restore(sess, filename);
 			Console.WriteLine("Loaded model");
 
 			mutex.ReleaseMutex();
